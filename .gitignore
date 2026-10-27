@@ -62,6 +62,8 @@ coverage.xml
 screening_results*/
 screening_production_test/
 benchmark_comparison/
+test_membrane_results*/
+scratch_eval/
 gnina
 *.unrel.pdb
 *.temp.sdf

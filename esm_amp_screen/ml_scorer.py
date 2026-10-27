@@ -143,7 +143,7 @@ class MLPeptideScorer:
         logger.info(f"Saved trained ML model to {out_path.name}")
 
     def _setup_features(self):
-        """Sets up feature names for 36D structural and physical interface fingerprints."""
+        """Sets up feature names for 35D structural and physical interface fingerprints."""
         feature_names = []
         for e1, e2 in ELEMENT_PAIRS:
             feature_names.append(f"pair_{e1}_{e2}_close")
@@ -152,7 +152,7 @@ class MLPeptideScorer:
             "e_vdw", "e_elec", "e_desolv", "bsa", "haddock_score", "e_air",
             "salt_bridges", "hbonds", "hydrophobic_contacts", "clashes",
             "net_charge", "hydrophobic_moment", "boman_index", "length",
-            "vina_affinity", "delta_delta_g"
+            "vina_affinity"
         ])
         self.feature_names = feature_names
 
@@ -177,7 +177,7 @@ class MLPeptideScorer:
     ) -> Dict[str, Any]:
         """
         Calculates HADDOCK physics, RF structural fingerprints, and ML-predicted affinity.
-        Returns full dict of physical & machine-learned metrics.
+        Returns full dict of physical & machine-learned metrics without label leakage.
         """
         complex_pdb = Path(complex_pdb)
 
@@ -190,7 +190,10 @@ class MLPeptideScorer:
         # 2. Structural Fingerprint
         fp = extract_structural_fingerprint(complex_pdb)
 
-        # 3. Assemble Feature Vector (exactly 36 dimensions)
+        # 3. Assemble Feature Vector (exactly 35 dimensions, no label leakage)
+        pep_len = float(hit_meta.get("length", len(hit_meta.get("sequence", "")))) if (hit_meta.get("length") or hit_meta.get("sequence")) else 12.0
+        dock_aff = float(hit_meta["affinity"]) if "affinity" in hit_meta else -8.0
+
         feat_vec = []
         for e1, e2 in ELEMENT_PAIRS:
             feat_vec.append(fp.get(f"pair_{e1}_{e2}_close", 0.0))
@@ -210,9 +213,8 @@ class MLPeptideScorer:
             float(hit_meta.get("net_charge_z", 0.0)),
             float(hit_meta.get("hydrophobic_moment_muH", 0.0)),
             float(hit_meta.get("boman_index", 0.0)),
-            float(hit_meta.get("length", 15)),
-            float(hit_meta.get("affinity", -10.0)),
-            float(hit_meta.get("delta_delta_g", 0.0))
+            pep_len,
+            dock_aff
         ])
 
         X_input = np.array([feat_vec])
@@ -228,7 +230,7 @@ class MLPeptideScorer:
             confidence = float(np.clip(70.0 + bsa_reward - variance_penalty - clash_penalty, 10.0, 95.0))
         else:
             # Transparent physical consensus derived from solution thermodynamics & docking
-            sol_dg = float(hit_meta.get("solution_delta_g", hit_meta.get("affinity", -8.0)))
+            sol_dg = float(hit_meta.get("solution_delta_g", dock_aff))
             ml_pkd = max(3.0, min(12.0, -sol_dg / RT_LN10))
             clash_pen = min(40.0, hit_meta.get("clashes", 0) * 10.0)
             bsa_score = min(30.0, (physics["bsa"] / 1000.0) * 30.0)
@@ -238,19 +240,28 @@ class MLPeptideScorer:
         # Exact Gibbs free energy conversion: Delta G = -RT * ln(10) * pKd (kcal/mol at 298.15 K)
         ml_delta_g = -RT_LN10 * ml_pkd
 
-        # Convert pKd to Kd molar
+        # Calibrated Affinity Tiers (replaces indefensible sub-picomolar pseudo-precision)
+        if ml_pkd >= 8.0:
+            affinity_tier = "Tier 1: High Affinity (< 10 nM, Top 1%)"
+        elif ml_pkd >= 6.5:
+            affinity_tier = "Tier 2: Moderate Affinity (10-300 nM, Top 5%)"
+        elif ml_pkd >= 5.0:
+            affinity_tier = "Tier 3: Micromolar Binding (0.3-10 µM, Top 20%)"
+        else:
+            affinity_tier = "Tier 4: Weak / Non-Binder (> 10 µM)"
+
         kd_molar = 10.0 ** (-ml_pkd)
-        if kd_molar < 1e-9:
-            kd_str = f"{kd_molar * 1e12:.1f} pM"
+        if kd_molar < 1e-8:
+            kd_str = "< 10 nM (Strong)"
         elif kd_molar < 1e-6:
-            kd_str = f"{kd_molar * 1e9:.1f} nM"
+            kd_str = f"{kd_molar * 1e9:.0f} nM"
         elif kd_molar < 1e-3:
             kd_str = f"{kd_molar * 1e6:.1f} µM"
         else:
             kd_str = f"{kd_molar * 1e3:.1f} mM"
 
         # Unified Balanced Consensus Score (combining Vina, HADDOCK, and solution thermodynamics)
-        vina_norm = -float(hit_meta.get("affinity", -8.0))
+        vina_norm = -float(dock_aff)
         haddock_norm = -float(physics["haddock_score"]) / 10.0
         ml_norm = float(ml_pkd)
         consensus_score = (0.35 * vina_norm) + (0.35 * haddock_norm) + (0.30 * ml_norm)
@@ -265,6 +276,7 @@ class MLPeptideScorer:
             "ml_pkd": round(float(ml_pkd), 2),
             "ml_delta_g": round(float(ml_delta_g), 2),
             "ml_kd": kd_str,
+            "affinity_tier": affinity_tier,
             "confidence_score": round(float(confidence), 1),
             "consensus_score": round(float(consensus_score), 2),
             "is_calibrated": self.is_calibrated

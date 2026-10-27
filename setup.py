@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="esm_amp_screen",
-    version="1.1.0",
+    version="1.2.0",
     description="High-Throughput ESM-Powered Protein-Peptide Virtual Screening, Physics Engine, & In Silico Lead Optimizer",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
@@ -20,7 +20,9 @@ setup(
         "biopython>=1.81",
         "PeptideBuilder>=0.1.1",
         "tqdm>=4.65.0",
-        "joblib>=1.3.0"
+        "joblib>=1.3.0",
+        "torch>=2.0.0",
+        "transformers>=4.30.0"
     ],
     entry_points={
         "console_scripts": [

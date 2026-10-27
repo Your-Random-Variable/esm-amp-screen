@@ -553,8 +553,8 @@ def main():
     parser.add_argument("--version", "-v", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
-    # Command: run / screen (all-in-one virtual screening)
-    p_run = subparsers.add_parser("run", aliases=["screen"], help="Run end-to-end automated AMP screening pipeline")
+    # Command: run / screen / target (all-in-one target-directed virtual screening)
+    p_run = subparsers.add_parser("run", aliases=["screen", "target"], help="Run target-directed protein-peptide virtual screening pipeline (multi-mode docking + HADDOCK physics)")
     p_run.add_argument("--receptor", "-r", required=True, help="Receptor PDB file path or 4-letter RCSB ID (e.g. 2mlt)")
     p_run.add_argument("--library", "-l", required=True, help="Peptide library FASTA file, or folder of PDB structures")
     p_run.add_argument("--output", "-o", default="./screening_results", help="Output directory")
@@ -592,6 +592,17 @@ def main():
     p_run.add_argument("--no-ml", action="store_true", help="Disable Stage 3 HADDOCK physics and ML scoring")
     p_run.set_defaults(func=run_pipeline)
 
+    # Command: membrane (direct sequence-first AMP screening with ESM-2 & Wimley-White biophysics)
+    p_mem = subparsers.add_parser("membrane", help="Direct sequence-first AMP screening using real ESM-2 representations & Wimley-White membrane biophysics (no docking required)")
+    p_mem.add_argument("--library", "-l", required=True, help="Peptide library FASTA file, or CSV containing a 'sequence' column")
+    p_mem.add_argument("--output", "-o", default="./membrane_screening_results", help="Output directory for membrane screening leaderboard")
+    p_mem.add_argument("--model", default="facebook/esm2_t12_35M_UR50D", help="ESM-2 model name or checkpoint path (default: facebook/esm2_t12_35M_UR50D)")
+    p_mem.add_argument("--device", default="cpu", help="Device to run ESM-2 ('cpu' or 'cuda', default: cpu)")
+    p_mem.add_argument("--top", type=int, default=20, help="Number of top hits to display in CLI leaderboard (default: 20)")
+    p_mem.add_argument("--batch-size", type=int, default=32, help="ESM-2 embedding batch size (default: 32)")
+    p_mem.add_argument("--no-esm", action="store_true", default=False, help="Disable ESM-2 and use pure Wimley-White biophysics")
+    p_mem.set_defaults(func=run_membrane_screening_cli)
+
     # Command: optimize-hit (in silico alanine scan & lead optimization)
     p_opt = subparsers.add_parser("optimize-hit", help="In silico lead optimization, alanine scanning, and affinity maturation")
     p_opt.add_argument("--complex", "-c", required=True, help="Input docked complex PDB file (co-complex with receptor and peptide chains)")
@@ -620,6 +631,8 @@ def main():
 
     # Command: benchmark (compare against crystal structure or run benchmark suite)
     p_bench = subparsers.add_parser("benchmark", help="Compare docked pose against experimental crystal structure, or run benchmark suite")
+    p_bench.add_argument("--mode", choices=["target", "membrane", "all"], default="target",
+                         help="Benchmark mode: 'target' (co-crystal docking recovery) or 'membrane' (DBAASP AMP vs matched decoys, default: target)")
     p_bench.add_argument("--complex", "-c", help="Predicted complex PDB (target + peptide)")
     p_bench.add_argument("--reference", "-r", help="Reference co-crystal PDB")
     p_bench.add_argument("--run-all", action="store_true", default=False, help="Run standardized validation suite across all 6 benchmark co-crystals")
@@ -636,6 +649,18 @@ def main():
 
 
 def run_benchmark_cli(args: argparse.Namespace) -> None:
+    bench_mode = getattr(args, "mode", "target")
+    if bench_mode in ("membrane", "all"):
+        from run_membrane_benchmark import run_membrane_benchmark
+        b_dir = Path(args.benchmarks_dir).resolve()
+        data_dir = Path(__file__).resolve().parent.parent / "data"
+        amp_csv = data_dir / "dbaasp_amp_benchmark.csv"
+        decoy_csv = data_dir / "matched_negative_decoys.csv"
+        out_csv = b_dir / "membrane_benchmark_results.csv"
+        run_membrane_benchmark(amp_csv=amp_csv, decoy_csv=decoy_csv, out_csv=out_csv)
+        if bench_mode == "membrane":
+            return
+
     if getattr(args, "run_all", False) or (not args.complex and not args.reference):
         from run_benchmarks import run_all_benchmarks
         b_dir = Path(args.benchmarks_dir).resolve()
@@ -868,6 +893,160 @@ def run_score_cli(args: argparse.Namespace) -> None:
     print(f"   • ML Kd:             {ml_res.get('ml_kd', 'N/A')}")
     print(f"   • Consensus Score:   {ml_res.get('consensus_score', 'N/A'):.2f}")
     print("="*95 + "\n")
+
+
+def run_membrane_screening_cli(args: argparse.Namespace) -> None:
+    """CLI runner for direct sequence-first membrane AMP screening."""
+    import pandas as pd
+    from esm_amp_screen.membrane_scorer import evaluate_membrane_activity
+    from esm_amp_screen.esm_embedder import ESM2Embedder
+
+    out_dir = Path(args.output).resolve()
+    ensure_dir(out_dir)
+
+    print("\n" + "="*115)
+    print("      ESM-AMP-SCREEN: MEMBRANE-DIRECTED ANTIMICROBIAL PEPTIDE SCREENING")
+    print("      Dual-Tier Sequence Screening: ESM-2 Neural Representation + Wimley-White Membrane Biophysics")
+    print("="*115 + "\n")
+
+    # 1. Parse Input Sequences
+    lib_path = Path(args.library)
+    sequences = {}
+    if lib_path.is_file():
+        if lib_path.suffix.lower() in (".fasta", ".fa", ".faa"):
+            sequences = read_fasta(lib_path)
+        elif lib_path.suffix.lower() in (".csv", ".tsv"):
+            sep = "," if lib_path.suffix.lower() == ".csv" else "\t"
+            df_in = pd.read_csv(lib_path, sep=sep)
+            seq_col = next((c for c in df_in.columns if c.lower() in ("sequence", "seq", "peptide")), None)
+            id_col = next((c for c in df_in.columns if c.lower() in ("id", "name", "pep_id")), None)
+            if not seq_col:
+                raise ValueError(f"CSV file must have a 'sequence' or 'seq' column. Found: {list(df_in.columns)}")
+            for idx, r in df_in.iterrows():
+                pep_id = str(r[id_col]) if id_col else f"pep_{idx+1}"
+                sequences[pep_id] = str(r[seq_col]).strip()
+        else:
+            with open(lib_path) as f:
+                for idx, line in enumerate(f, 1):
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        sequences[f"pep_{idx}"] = line
+    else:
+        lib_str = str(args.library).strip().upper()
+        if all(c in "ACDEFGHIKLMNPQRSTVWY" for c in lib_str) and len(lib_str) >= 4:
+            sequences = {"input_seq": lib_str}
+        else:
+            raise FileNotFoundError(f"Peptide library file not found: {lib_path}")
+
+    if not sequences:
+        raise ValueError(f"No valid peptide sequences found in {lib_path}")
+
+    logger.info(f"Loaded {len(sequences)} peptide sequences for membrane screening.")
+
+    # 2. ESM-2 Sequence Model (Tier 0)
+    embedder = None
+    if not getattr(args, "no_esm", False):
+        model_name = getattr(args, "model", "facebook/esm2_t12_35M_UR50D")
+        device = getattr(args, "device", "cpu")
+        embedder = ESM2Embedder(model_name=model_name, device=device)
+        logger.info(f"Using ESM-2 model: {model_name} on {device}")
+
+    # 3. Sequence Evaluation
+    records = []
+    logger.info("Computing Wimley-White interfacial partitioning and ESM-2 neural probabilities...")
+
+    seq_list = list(sequences.values())
+    id_list = list(sequences.keys())
+
+    esm_probs = []
+    if embedder:
+        for seq in seq_list:
+            try:
+                res = embedder.predict_amp_probability(seq)
+                esm_probs.append(res)
+            except Exception as e:
+                logger.warning(f"ESM-2 embedding failed for sequence {seq[:10]}...: {e}")
+                esm_probs.append({"esm_prob_amp": 0.5, "tier": "Tier 3: Unscored", "is_uncertain_ood": True})
+    else:
+        esm_probs = [{"esm_prob_amp": 0.5, "tier": "N/A (ESM disabled)", "is_uncertain_ood": False} for _ in seq_list]
+
+    for (pep_id, seq), esm_res in zip(sequences.items(), esm_probs):
+        try:
+            mem = evaluate_membrane_activity(seq)
+        except Exception as e:
+            logger.warning(f"Skipping {pep_id}: {e}")
+            continue
+
+        p_esm = esm_res["esm_prob_amp"]
+        p_mem = mem["bactericidal_probability"]
+        if embedder:
+            composite_prob = round((0.50 * p_esm) + (0.50 * p_mem), 4)
+        else:
+            composite_prob = round(p_mem, 4)
+
+        records.append({
+            "id": pep_id,
+            "sequence": seq,
+            "length": mem["length"],
+            "composite_score": composite_prob,
+            "esm_prob": p_esm,
+            "mpi_score": mem["membrane_permeabilization_index"],
+            "net_charge_z": mem["net_charge_z"],
+            "charge_density": mem["charge_density_z_per_res"],
+            "dg_interfacial": mem["mean_dg_interfacial_kcal"],
+            "dg_octanol": mem["total_dg_octanol_kcal"],
+            "mu_h_alpha": mem["mu_h_alpha_100deg"],
+            "mu_h_beta": mem["mu_h_beta_160deg"],
+            "favored_conformation": mem["favored_conformation"],
+            "hemolysis_risk": mem["hemolysis_risk_probability"],
+            "hemolysis_tier": mem["hemolysis_tier"],
+            "therapeutic_index": mem["therapeutic_index"],
+            "verdict": mem["verdict"]
+        })
+
+    if not records:
+        logger.error("No valid sequences could be scored.")
+        return
+
+    # 4. Sort and assign percentile ranks
+    records.sort(key=lambda x: x["composite_score"], reverse=True)
+    n_rec = len(records)
+    for i, r in enumerate(records, 1):
+        r["rank"] = i
+        r["percentile"] = round(100.0 * (1.0 - (i - 1) / max(1, n_rec)), 1)
+
+    df_out = pd.DataFrame(records)
+    csv_out = out_dir / "membrane_amp_leaderboard.csv"
+    df_out.to_csv(csv_out, index=False)
+
+    # 5. CLI Printout
+    top_n = min(getattr(args, "top", 20), n_rec)
+    header = (
+        f"{'Rank':<5} {'ID':<18} {'Len':<5} {'Score':<8} {'ESM-P':<8} "
+        f"{'MPI':<7} {'Charge':<8} {'ΔG_if':<8} {'μH(α)':<8} {'Hemolysis':<16} {'TI':<6} {'Triage Verdict':<32}"
+    )
+    print(header)
+    print("-" * len(header))
+    for r in records[:top_n]:
+        print(
+            f"{r['rank']:<5} {r['id'][:16]:<18} {r['length']:<5} {r['composite_score']:<8.3f} "
+            f"{r['esm_prob']:<8.3f} {r['mpi_score']:<7.1f} {r['net_charge_z']:<8.1f} "
+            f"{r['dg_interfacial']:<8.2f} {r['mu_h_alpha']:<8.2f} {r['hemolysis_tier'][:14]:<16} "
+            f"{r['therapeutic_index']:<6.1f} {r['verdict'][:32]:<32}"
+        )
+    print("-" * len(header))
+
+    t1_count = sum(1 for r in records if "Tier 1" in r["verdict"])
+    t2_count = sum(1 for r in records if "Tier 2" in r["verdict"])
+    t3_count = sum(1 for r in records if "Tier 3" in r["verdict"])
+    t4_count = sum(1 for r in records if "Tier 4" in r["verdict"])
+
+    print("\nTriage Summary Across Library:")
+    print(f"  • Tier 1 (High Potency & Selective AMPs): {t1_count} ({t1_count/n_rec*100:.1f}%)")
+    print(f"  • Tier 2 (Moderate Activity):             {t2_count} ({t2_count/n_rec*100:.1f}%)")
+    print(f"  • Tier 3 (Weak / Marginal Activity):      {t3_count} ({t3_count/n_rec*100:.1f}%)")
+    print(f"  • Tier 4 (Inactive / Non-Membrane AMPs):  {t4_count} ({t4_count/n_rec*100:.1f}%)")
+    print(f"\n[OK] Complete results exported to: {csv_out}\n")
 
 
 if __name__ == "__main__":
