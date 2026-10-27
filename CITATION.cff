@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as below."
+authors:
+  - family-names: "ESM-AMP-Screen Contributors"
+    given-names: "Computational Structural Biology Team"
+title: "ESM-AMP-Screen: High-Throughput ESM-Powered Protein-Peptide Virtual Screening, Physics Engine, & In Silico Lead Optimizer"
+version: 1.1.2
+date-released: 2026-10-27
+url: "https://github.com/Your-Random-Variable/esm-amp-screen"
+keywords:
+  - computational biology
+  - peptide docking
+  - virtual screening
+  - antimicrobial peptides
+  - machine learning
+  - lead optimization
+  - haddock physics

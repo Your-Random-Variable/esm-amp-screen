@@ -1,0 +1,81 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing and coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Screening run outputs and large scratch data
+screening_results*/
+screening_production_test/
+benchmark_comparison/
+gnina
+*.unrel.pdb
+*.temp.sdf
+*.temp.pdbqt
+*.log
+
+# Loose scratch PDBs
+*.pdb.temp.*
+test_res_R.pdb
+test_*.pdb
+1CKA.pdb
+1D9O.pdb
+1DKX.pdb
+1ER8.pdb
+1SSH.pdb
+2B4J.pdb
+benchmark_1awr.pdb

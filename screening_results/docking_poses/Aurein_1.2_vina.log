@@ -1,0 +1,50 @@
+AutoDock Vina v1.2.5
+#################################################################
+# If you used AutoDock Vina in your work, please cite:          #
+#                                                               #
+# J. Eberhardt, D. Santos-Martins, A. F. Tillack, and S. Forli  #
+# AutoDock Vina 1.2.0: New Docking Methods, Expanded Force      #
+# Field, and Python Bindings, J. Chem. Inf. Model. (2021)       #
+# DOI 10.1021/acs.jcim.1c00203                                  #
+#                                                               #
+# O. Trott, A. J. Olson,                                        #
+# AutoDock Vina: improving the speed and accuracy of docking    #
+# with a new scoring function, efficient optimization and       #
+# multithreading, J. Comp. Chem. (2010)                         #
+# DOI 10.1002/jcc.21334                                         #
+#                                                               #
+# Please see https://github.com/ccsb-scripps/AutoDock-Vina for  #
+# more information.                                             #
+#################################################################
+
+Scoring function : vina
+Rigid receptor: /home/lab202/.gemini/antigravity/scratch/esm_amp_screen/screening_results/receptors_pdbqt/target_receptor.pdbqt
+Ligand: /home/lab202/.gemini/antigravity/scratch/esm_amp_screen/screening_results/peptides_pdbqt/Aurein_1.2.pdbqt
+Grid center: X 4.085 Y -0.098 Z -13.843
+Grid size  : X 42 Y 46 Z 44
+Grid space : 0.375
+Exhaustiveness: 2
+CPU: 10
+Verbosity: 1
+
+Computing Vina grid ... done.
+Performing docking (random seed: -44784887) ... 
+0%   10   20   30   40   50   60   70   80   90   100%
+|----|----|----|----|----|----|----|----|----|----|
+***************************************************
+
+mode |   affinity | dist from best mode
+     | (kcal/mol) | rmsd l.b.| rmsd u.b.
+-----+------------+----------+----------
+   1       -10.56          0          0
+   2       -10.51      4.145      8.278
+   3       -9.774      6.763      15.27
+   4       -9.328      6.489      11.86
+   5        -9.03      4.086      8.786
+   6       -8.671      9.209       14.6
+   7       -8.426      4.283      7.241
+   8       -8.092      20.36      27.52
+   9       -7.766      11.29       16.4
+
+WARNING: Search space volume is greater than 27000 Angstrom^3 (See FAQ)
+WARNING: At low exhaustiveness, it may be impossible to utilize all CPUs.
