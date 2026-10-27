@@ -33,56 +33,61 @@ from esm_amp_screen.amp_analyzer import (
 )
 from esm_amp_screen.utils import AA_3TO1, logger
 
-# Curated literature experimental reference data
-# References:
-# 1AWR: Zhao et al., Structure 5:139-146 (1997); CypA-substrate peptide Kd ~ 5.5 µM (ΔG = -7.18 kcal/mol)
-# 1CKA: Musacchio et al., Science 263:971-974 (1994); Abl SH3 polyproline peptide Kd ~ 1.5 µM (ΔG = -7.95 kcal/mol)
-# 1DKX: Zhu et al., Science 272:1606-1614 (1996); DnaK substrate peptide Kd ~ 0.4 µM (ΔG = -8.73 kcal/mol)
-# 1ER8: Bailey et al., Protein Sci 2:1155-1162 (1993); Endothiapepsin transition-state inhibitor Kd ~ 12 nM (ΔG = -10.80 kcal/mol)
-# 1SSH: Feng et al., Science 266:1241-1247 (1994); c-Src SH3 polyproline peptide Kd ~ 8.0 µM (ΔG = -6.95 kcal/mol)
-# 1YCR: Kussie et al., Science 274:948-953 (1996); MDM2-p53 peptide Kd ~ 600 nM (ΔG = -8.49 kcal/mol)
+# Curated literature experimental reference data and structural provenance:
+# 1AWR: Vajdos et al., Protein Sci 6:2297-2307 (1997); CypA active site + HIV-1 CA (HAGPIA, 6 aa), Kd ~ 5.5 µM (ΔG = -7.18 kcal/mol)
+# 1CKA: Wu et al., Structure 3:215-226 (1995); Knudsen et al., EMBO J 13:827 (1994); Murine c-Crk N-SH3 + C3G peptide (PPPALPPKK, 9 aa), Kd ~ 2.0 µM (ΔG = -7.77 kcal/mol)
+# 1DKX: Zhu et al., Science 272:1606-1614 (1996); Burkholder et al., PNAS 93:10632 (1996); DnaK SBD + λ O peptide (NRLLLTG, 7 aa), Kd ~ 0.4 µM (ΔG = -8.73 kcal/mol)
+# 1YCR: Kussie et al., Science 274:948-953 (1996); MDM2 + p53(17-29) (ETFSDLWKLLPEN, 13 aa); Kd ~ 600 nM (ΔG = -8.49 kcal/mol, measured for p53 15-29)
+# 1SSH: SGX Structural Genomics Consortium (PDB ID: 1SSH, 2003); S. cerevisiae YFR024C-A SH3 + peptide (GPPPAMPARPT, 11 aa). No peer-reviewed Kd (8.0 µM was chicken c-Src 1PRL).
+# 1ER8: Cooper et al., FEBS Lett 174:96-101 (1984); Bailey et al., Protein Sci 2:1155 (1993); Endothiapepsin + H-77 peptidomimetic (D-His-Pro-Phe-His-Leu-[CH2-NH]-Leu-Val-Tyr, 8 aa). (12 nM was canine renin IC50).
 LITERATURE_BENCHMARKS = {
     "1AWR": {
         "target": "Cyclophilin A (CypA)",
-        "peptide_name": "HAGPIA substrate",
+        "peptide_name": "HIV-1 CA (HAGPIA)",
         "exp_kd_molar": 5.5e-6,
         "exp_kd_str": "5.5 µM",
-        "exp_delta_g": -7.18
+        "exp_delta_g": -7.18,
+        "citation": "Vajdos et al., Protein Sci. 6:2297 (1997)"
     },
     "1CKA": {
-        "target": "Abl SH3 Domain",
-        "peptide_name": "PPPALPPKK (Abl-p41)",
-        "exp_kd_molar": 1.5e-6,
-        "exp_kd_str": "1.5 µM",
-        "exp_delta_g": -7.95
+        "target": "c-Crk N-SH3 Domain",
+        "peptide_name": "C3G (PPPALPPKK)",
+        "exp_kd_molar": 2.0e-6,
+        "exp_kd_str": "2.0 µM",
+        "exp_delta_g": -7.77,
+        "citation": "Wu et al., Structure 3:215 (1995)"
     },
     "1DKX": {
         "target": "DnaK Chaperone SBD",
-        "peptide_name": "NRLLLTG (DnaK model)",
+        "peptide_name": "λ O model (NRLLLTG)",
         "exp_kd_molar": 4.0e-7,
         "exp_kd_str": "0.4 µM",
-        "exp_delta_g": -8.73
+        "exp_delta_g": -8.73,
+        "citation": "Zhu et al., Science 272:1606 (1996)"
     },
     "1ER8": {
         "target": "Endothiapepsin",
-        "peptide_name": "HPFHLLVY (H-142 analogue)",
-        "exp_kd_molar": 1.2e-8,
-        "exp_kd_str": "12 nM",
-        "exp_delta_g": -10.80
+        "peptide_name": "H-77 Peptidomimetic",
+        "exp_kd_molar": None,
+        "exp_kd_str": "Peptidomimetic",
+        "exp_delta_g": None,
+        "citation": "Bailey et al., Protein Sci. 2:1155 (1993)"
     },
     "1SSH": {
-        "target": "c-Src SH3 Domain",
-        "peptide_name": "GPPPAMPARPT (Src-p41)",
-        "exp_kd_molar": 8.0e-6,
-        "exp_kd_str": "8.0 µM",
-        "exp_delta_g": -6.95
+        "target": "Yeast YFR024C-A SH3",
+        "peptide_name": "GPPPAMPARPT",
+        "exp_kd_molar": None,
+        "exp_kd_str": "Unreported",
+        "exp_delta_g": None,
+        "citation": "SGX Structural Genomics (2003)"
     },
     "1YCR": {
         "target": "MDM2 Oncoprotein",
-        "peptide_name": "ETFSDLWKLLPEN (p53 wt)",
+        "peptide_name": "p53 (ETFSDLWKLLPEN)",
         "exp_kd_molar": 6.0e-7,
-        "exp_kd_str": "600 nM",
-        "exp_delta_g": -8.49
+        "exp_kd_str": "600 nM*",
+        "exp_delta_g": -8.49,
+        "citation": "Kussie et al., Science 274:948 (1996)"
     }
 }
 
@@ -193,7 +198,7 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         )
     print("-" * len(header))
 
-    # Compute statistics if experimental data available
+    # Compute statistics on genuinely matched experimental complexes
     valid = [r for r in results if r["exp_delta_g"] is not None]
     if len(valid) >= 3:
         pred_arr = np.array([r["pred_delta_g"] for r in valid])
@@ -201,12 +206,14 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         r_val, p_val = pearsonr(pred_arr, exp_arr)
         rho_val, _ = spearmanr(pred_arr, exp_arr)
         rmse = float(np.sqrt(np.mean((pred_arr - exp_arr) ** 2)))
+        mae = float(np.mean(np.abs(pred_arr - exp_arr)))
 
-        print("\nStatistical Validation vs Literature Experimental Affinities:")
+        print("\nStatistical Validation on Genuinely Matched Complexes:")
+        print(f"  • Matched Complexes:        {len(valid)} ({', '.join(r['pdb_id'] for r in valid)})")
         print(f"  • Pearson Correlation (r):  {r_val:.3f} (p = {p_val:.4f})")
         print(f"  • Spearman Rank Order (ρ):  {rho_val:.3f}")
         print(f"  • Root Mean Square Error:   {rmse:.2f} kcal/mol")
-        print(f"  • Number of Co-Crystals:    {len(valid)}")
+        print(f"  • Mean Absolute Error:      {mae:.2f} kcal/mol")
     print("="*115)
     print(f"\n[OK] Validation results saved to: {out_csv}\n")
     return df

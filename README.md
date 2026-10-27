@@ -66,21 +66,25 @@ Peptide Library (FASTA / PDBs) ──► Target Protein (PDB / RCSB ID)
 
 ## 📊 Bound Co-Crystal Pose Rescoring & Sanity Check
 
-The physics and solution thermodynamics engines are evaluated on **6 standardized benchmark co-crystal complexes** (shipped inside `benchmarks/`). This benchmark verifies physical force-field rescoring and rank-order correlation on known bound crystallographic structures—serving as an essential physical consistency sanity check across diverse peptide lengths (6–13 residues) and receptor classes, rather than a prospective blind docking validation. All structures have experimentally measured wet-lab dissociation constants ($K_d$ / $\Delta G_{\text{exp}}$) reported in the literature (*Science*, *Structure*, *Protein Science*):
+The physics and solution thermodynamics engines are evaluated on **6 standardized benchmark co-crystal complexes** (shipped inside `benchmarks/`). This benchmark verifies physical force-field rescoring and rank-order correlation on known bound crystallographic structures—serving as an essential physical consistency sanity check across diverse peptide lengths (6–13 residues) and receptor architectures, rather than a prospective blind docking validation or absolute affinity predictor:
 
-| Benchmark PDB | Target Receptor | Peptide Sequence (Length) | $E_{\text{vdw}}$ (kcal/mol) | $E_{\text{elec}}$ (kcal/mol) | HADDOCK Score | BSA ($\text{\AA}^2$) | Predicted $\Delta G_{\text{sol}}$ | Experimental $\Delta G_{\text{exp}}$ | Predicted $K_d$ | Experimental $K_d$ |
+| Benchmark PDB | Target Receptor | Peptide Sequence (Length) | $E_{\text{vdw}}$ (kcal/mol) | $E_{\text{elec}}$ (kcal/mol) | HADDOCK Score | BSA ($\text{\AA}^2$) | Predicted $\Delta G_{\text{sol}}$ | Experimental $\Delta G_{\text{exp}}$ | Predicted $K_d$ | Experimental $K_d$ (Literature) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1AWR** | Cyclophilin A (CypA) | `HAGPIA` (6 aa) | $-24.4$ | $-2.0$ | $-29.2$ | $780$ | **$-5.57\text{ kcal/mol}$** | **$-7.18\text{ kcal/mol}$** | $83.2\ \mu\text{M}$ | $5.5\ \mu\text{M}$ |
-| **1CKA** | Abl SH3 Domain | `PPPALPPKK` (9 aa) | $-27.6$ | $-34.0$ | $-42.0$ | $938$ | **$-8.86\text{ kcal/mol}$** | **$-7.95\text{ kcal/mol}$** | $319.7\text{ nM}$ | $1.5\ \mu\text{M}$ |
-| **1DKX** | DnaK Chaperone SBD | `NRLLLTG` (7 aa) | $-31.5$ | $-3.5$ | $-39.5$ | $1093$ | **$-7.13\text{ kcal/mol}$** | **$-8.73\text{ kcal/mol}$** | $5.9\ \mu\text{M}$ | $0.4\ \mu\text{M}$ |
-| **1ER8** | Endothiapepsin | `HPFHLLVY` (8 aa) | $-61.2$ | $+0.1$ | $-72.7$ | $1616$ | **$-16.53\text{ kcal/mol}$** | **$-10.80\text{ kcal/mol}$** | $0.8\text{ pM}$ | $12\text{ nM}$ |
-| **1SSH** | c-Src SH3 Domain | `GPPPAMPARPT` (11 aa) | $-29.7$ | $-15.5$ | $-39.7$ | $914$ | **$-7.70\text{ kcal/mol}$** | **$-6.95\text{ kcal/mol}$** | $2.3\ \mu\text{M}$ | $8.0\ \mu\text{M}$ |
-| **1YCR** | MDM2 Oncoprotein | `ETFSDLWKLLPEN` (13 aa) | $-49.8$ | $-10.0$ | $-64.5$ | $1440$ | **$-11.85\text{ kcal/mol}$** | **$-8.49\text{ kcal/mol}$** | $2.1\text{ nM}$ | $600\text{ nM}$ |
+| **1AWR** | Cyclophilin A (CypA) | `HAGPIA` (6 aa) | $-24.4$ | $-2.0$ | $-29.2$ | $780$ | **$-5.57\text{ kcal/mol}$** | **$-7.18\text{ kcal/mol}$** | $83.2\ \mu\text{M}$ | $5.5\ \mu\text{M}$ (*Protein Sci.* 1997) |
+| **1CKA** | c-Crk N-SH3 Domain | `PPPALPPKK` (9 aa) | $-27.6$ | $-34.0$ | $-42.0$ | $938$ | **$-8.86\text{ kcal/mol}$** | **$-7.77\text{ kcal/mol}$** | $319.7\text{ nM}$ | $2.0\ \mu\text{M}$ (*Structure* 1995) |
+| **1DKX** | DnaK Chaperone SBD | `NRLLLTG` (7 aa) | $-31.5$ | $-3.5$ | $-39.5$ | $1093$ | **$-7.13\text{ kcal/mol}$** | **$-8.73\text{ kcal/mol}$** | $5.9\ \mu\text{M}$ | $0.4\ \mu\text{M}$ (*Science* 1996) |
+| **1YCR** | MDM2 Oncoprotein | `ETFSDLWKLLPEN` (13 aa) | $-49.8$ | $-10.0$ | $-64.5$ | $1440$ | **$-11.85\text{ kcal/mol}$** | **$-8.49\text{ kcal/mol}$** | $2.1\text{ nM}$ | $600\text{ nM}^*$ (*Science* 1996) |
+| **1SSH** | Yeast YFR024C-A SH3 | `GPPPAMPARPT` (11 aa) | $-29.7$ | $-15.5$ | $-39.7$ | $914$ | **$-7.70\text{ kcal/mol}$** | *N/A* | $2.3\ \mu\text{M}$ | Unreported (SGX 2003) |
+| **1ER8** | Endothiapepsin | `HPFHLLVY` (8 aa) | $-61.2$ | $+0.1$ | $-72.7$ | $1616$ | **$-16.53\text{ kcal/mol}$** | *N/A* | $0.8\text{ pM}$ | Peptidomimetic H-77 |
 
-### Statistical Validation Metrics:
-- **Pearson Correlation ($r$):** **`0.867`** ($p = 0.0255$)
-- **Spearman Rank Order ($\rho$):** **`0.543`**
-- **Root Mean Square Error (RMSE):** **`2.91 kcal/mol`** across all 6 systems
+*\*1YCR 600 nM $K_d$ was measured by SPR for the 15-mer p53 fragment (residues 15–29), while the crystal pose resolves the 13-mer (residues 17–29).*  
+*\*\*1ER8 is complexed with the transition-state peptidomimetic inhibitor H-77 containing a reduced non-peptide isostere bond ($-\text{CH}_2-\text{NH}-$) and D-His; previously cited 12 nM was an IC50 for canine renin.*
+
+### Statistical Validation on Genuinely Matched Complexes:
+- **Pearson Correlation ($r$):** **`0.525`**
+- **Spearman Rank Order ($\rho$):** **`0.400`**
+- **Root Mean Square Error (RMSE):** **`2.10 kcal/mol`**
+- **Mean Absolute Error (MAE):** **`1.91 kcal/mol`** across all 4 matched complexes
 
 > **100% Reproducible:** You can re-run and verify this entire benchmark table on your local workstation in ~10 seconds:
 > ```bash
@@ -89,7 +93,7 @@ The physics and solution thermodynamics engines are evaluated on **6 standardize
 > esm-amp-screen benchmark --run-all
 > ```
 >
-> **Scope & Interpretation:** This benchmark demonstrates rank-ordering consistency and biophysical sanity across bound co-crystal complexes. Like all heuristic and rigid-pose scoring models, it is designed for hit triage and relative ranking rather than prospective absolute affinity ($K_d$) prediction.
+> **Scope & Interpretation:** This benchmark demonstrates rank-ordering consistency and biophysical sanity across bound co-crystal complexes. Like all heuristic and rigid-pose scoring models, it is designed for relative hit triage rather than prospective absolute affinity ($K_d$) prediction.
 
 ---
 
