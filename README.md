@@ -21,7 +21,7 @@ Designed for drug discovery teams, chemical biologists, and antimicrobial peptid
 | Metric / Feature | Traditional Peptide Docking (Rosetta FlexPepDock, CrankPep, HADDOCK Web) | Standard Small-Molecule Docking (Vina, Glide, AutoDock 4) | **ESM-AMP-Screen** |
 | :--- | :--- | :--- | :--- |
 | **Speed per Peptide** | 15–120 minutes | 1–5 minutes | **10–25 seconds (100× faster)** |
-| **Throughput** | 10–50 peptides / day | 500–1,000 / day (severe distortion on peptides) | **10,000+ peptides / day** |
+| **Throughput** | 10–50 peptides / day | 500–1,000 / day (severe distortion on peptides) | **10,000+ peptides / day** (on 16–32 parallel CPU cores) |
 | **Secondary Structure** | Heavy sampling needed | Shatters peptide helices/strands | **Preserved via Ramachandran dihedrals & ESM** |
 | **Macrocycle Perception** | Manual topology scripting | Unconstrained | **Automatic SG-SG & cyclic topology locking** |
 | **Charge Model** | All-atom with explicit H | Variable | **Robust united-atom formal charge mapping** |
@@ -64,36 +64,39 @@ Peptide Library (FASTA / PDBs) ──► Target Protein (PDB / RCSB ID)
 
 ---
 
-## 📊 Bound Co-Crystal Pose Rescoring & Sanity Check
+### 📊 Bound Co-Crystal Pose Rescoring & Sanity Check
 
-The physics and solution thermodynamics engines are evaluated on **6 standardized benchmark co-crystal complexes** (shipped inside `benchmarks/`). This benchmark verifies physical force-field rescoring and rank-order correlation on known bound crystallographic structures—serving as an essential physical consistency sanity check across diverse peptide lengths (6–13 residues) and receptor architectures, rather than a prospective blind docking validation or absolute affinity predictor:
+The physics and solution thermodynamics engines are evaluated on **6 standardized benchmark co-crystal complexes** (shipped inside `benchmarks/`). This benchmark evaluates physical force-field rescoring and rank-order consistency on known bound crystallographic structures—serving as an exploratory physical consistency sanity check across diverse peptide lengths (6–13 residues) and receptor architectures, rather than a prospective blind docking validation or absolute affinity predictor:
 
-| Benchmark PDB | Target Receptor | Peptide Sequence (Length) | $E_{\text{vdw}}$ (kcal/mol) | $E_{\text{elec}}$ (kcal/mol) | HADDOCK Score | BSA ($\text{\AA}^2$) | Predicted $\Delta G_{\text{sol}}$ | Experimental $\Delta G_{\text{exp}}$ | Predicted $K_d$ | Experimental $K_d$ (Literature) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **1AWR** | Cyclophilin A (CypA) | `HAGPIA` (6 aa) | $-24.4$ | $-2.0$ | $-29.2$ | $780$ | **$-5.57\text{ kcal/mol}$** | **$-7.18\text{ kcal/mol}$** | $83.2\ \mu\text{M}$ | $5.5\ \mu\text{M}$ (*Protein Sci.* 1997) |
-| **1CKA** | c-Crk N-SH3 Domain | `PPPALPPKK` (9 aa) | $-27.6$ | $-34.0$ | $-42.0$ | $938$ | **$-8.86\text{ kcal/mol}$** | **$-7.77\text{ kcal/mol}$** | $319.7\text{ nM}$ | $2.0\ \mu\text{M}$ (*Structure* 1995) |
-| **1DKX** | DnaK Chaperone SBD | `NRLLLTG` (7 aa) | $-31.5$ | $-3.5$ | $-39.5$ | $1093$ | **$-7.13\text{ kcal/mol}$** | **$-8.73\text{ kcal/mol}$** | $5.9\ \mu\text{M}$ | $0.4\ \mu\text{M}$ (*Science* 1996) |
-| **1YCR** | MDM2 Oncoprotein | `ETFSDLWKLLPEN` (13 aa) | $-49.8$ | $-10.0$ | $-64.5$ | $1440$ | **$-11.85\text{ kcal/mol}$** | **$-8.49\text{ kcal/mol}$** | $2.1\text{ nM}$ | $600\text{ nM}^*$ (*Science* 1996) |
-| **1SSH** | Yeast YFR024C-A SH3 | `GPPPAMPARPT` (11 aa) | $-29.7$ | $-15.5$ | $-39.7$ | $914$ | **$-7.70\text{ kcal/mol}$** | *N/A* | $2.3\ \mu\text{M}$ | Unreported (SGX 2003) |
-| **1ER8** | Endothiapepsin | `HPFHLLVY` (8 aa) | $-61.2$ | $+0.1$ | $-72.7$ | $1616$ | **$-16.53\text{ kcal/mol}$** | *N/A* | $0.8\text{ pM}$ | Peptidomimetic H-77 |
+| Benchmark PDB | Target Receptor | Peptide Sequence (Length) | $E_{\text{vdw}}$ (kcal/mol) | $E_{\text{elec}}$ (kcal/mol) | HADDOCK Score | BSA ($\text{\AA}^2$) | Predicted $\Delta G_{\text{sol}}$ | Experimental $\Delta G_{\text{exp}}$ | Predicted $K_d$ | Experimental $K_d$ (Literature) | Category / Structural Role |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1AWR** | Cyclophilin A (CypA) | `HAGPIA` (6 aa) | $-24.4$ | $-2.0$ | $-29.2$ | $780$ | **$-5.57\text{ kcal/mol}$** | **$-7.18\text{ kcal/mol}$** | $83.2\ \mu\text{M}$ | $5.5\ \mu\text{M}$ (*Protein Sci.* 1997) | Matched Pose |
+| **1CKA** | c-Crk N-SH3 Domain | `PPPALPPKK` (9 aa) | $-27.6$ | $-34.0$ | $-42.0$ | $938$ | **$-8.86\text{ kcal/mol}$** | **$-7.77\text{ kcal/mol}$** | $319.7\text{ nM}$ | $2.0\ \mu\text{M}^*$ (*Structure* 1995) | 9-mer Core / 10-mer Affinity Proxy |
+| **1DKX** | DnaK SBD (apo, 25°C) | `NRLLLTG` (7 aa) | $-31.5$ | $-3.5$ | $-39.5$ | $1093$ | **$-7.13\text{ kcal/mol}$** | **$-8.73\text{ kcal/mol}$** | $5.9\ \mu\text{M}$ | $0.4\ \mu\text{M}$ (*Science* 1996) | Matched Pose (Apo State) |
+| **1YCR** | MDM2 Oncoprotein | `ETFSDLWKLLPEN` (13 aa) | $-49.8$ | $-10.0$ | $-64.5$ | $1440$ | **$-11.85\text{ kcal/mol}$** | **$-8.49\text{ kcal/mol}$** | $2.1\text{ nM}$ | $600\text{ nM}^*$ (ITC, 35°C) | 13-mer Core / 15-mer ITC Proxy |
+| **1SSH** | Yeast YFR024C-A SH3 | `GPPPAMPARPT` (11 aa) | $-29.7$ | $-15.5$ | $-39.7$ | $914$ | **$-7.70\text{ kcal/mol}$** | *N/A* | $2.3\ \mu\text{M}$ | Unreported (SGX 2004) | Structural Check Only |
+| **1ER8** | Endothiapepsin | `HPFHLLVY` (8 aa) | $-61.2$ | $+0.1$ | $-72.7$ | $1616$ | **$-16.53\text{ kcal/mol}$** | *N/A* | $0.8\text{ pM}$ | Peptidomimetic H-77 | Peptidomimetic / Outlier |
 
-*\*1YCR 600 nM $K_d$ was measured by SPR for the 15-mer p53 fragment (residues 15–29), while the crystal pose resolves the 13-mer (residues 17–29).*  
-*\*\*1ER8 is complexed with the transition-state peptidomimetic inhibitor H-77 containing a reduced non-peptide isostere bond ($-\text{CH}_2-\text{NH}-$) and D-His; previously cited 12 nM was an IC50 for canine renin.*
+> [!NOTE]
+> **Provenance & Structural Proxy Annotations:**  
+> - **1CKA (c-Crk N-SH3 / C3G proxy):** The crystal structure resolves the 9-mer core `PPPALPPKK` (C-terminal Arg is disordered in the crystal lattice). The experimental solution affinity ($K_d \approx 2.0\ \mu\text{M}$, $\Delta G_{\text{exp}} = -7.77\text{ kcal/mol}$) was measured for the full 10-mer `PPPALPPKKR` (Wu et al., *Structure* 1995; Knudsen et al., *EMBO J.* 1994). This row is evaluated as a resolved-core / full-ligand proxy.  
+> - **1YCR (MDM2 / p53 proxy):** The crystal structure resolves the 13-mer core `ETFSDLWKLLPEN` (p53 residues 17–29). The literature affinity of $K_d \approx 600\text{ nM}$ was determined by Isothermal Titration Calorimetry (ITC) at 35°C (308.15 K; $\Delta G^\circ = -8.77\text{ kcal/mol}$) for the longer 15-mer `SQETFSDLWKLLPEN` (Dawson et al., *Mol. Cancer Res.* 2004). At standard 298.15 K, the nominal conversion yields $-8.49\text{ kcal/mol}$; this row is evaluated as a 13-mer pose / 15-mer ITC proxy.  
+> - **1DKX (DnaK SBD):** Binding was measured on the *E. coli* DnaK substrate-binding domain (SBD, residues 389–607) in the apo (nucleotide-free) state via fluorescence anisotropy at 25°C ($K_d \approx 0.4\ \mu\text{M}$, Zhu et al., *Science* 1996; Burkholder et al., *PNAS* 1996). Affinity shifts significantly upon ATP binding in the full-length chaperone.  
+> - **1AWR (CypA / HIV-1 CA):** Vajdos et al. (*Protein Sci.* 1997) resolved the CypA active site complex with HIV-1 CA hexapeptide `HAGPIA` (capsid residues 87–92). Solution affinity from capsid binding assays falls in the range $K_d \approx 5.5 - 16\ \mu\text{M}$ ($\Delta G_{\text{exp}} \approx -7.18\text{ kcal/mol}$; Yoo et al., *J. Mol. Biol.* 1997; Gamble et al., *Cell* 1996).  
+> - **1SSH (Yeast YFR024C-A SH3):** Deposited in 2004 (released 2005) by the SGX Structural Genomics Consortium (PDB ID: `1SSH`) for *S. cerevisiae* YFR024C-A SH3 domain bound to Sla1-derived peptide (11 resolved residues of 12-mer). Retained strictly as a structural pose check (no peer-reviewed solution $K_d$; previously cited 8.0 μM was chicken c-Src PDB 1PRL).  
+> - **1ER8 (Endothiapepsin / H-77):** Complexed with the transition-state peptidomimetic renin inhibitor H-77 (`D-His-Pro-Phe-His-Leu-[CH2-NH]-Leu-Val-Tyr`, 8 aa) containing a non-cleavable reduced peptide isostere bond and D-amino acid (Cooper et al., *FEBS Lett.* 1984; Bailey et al., *Protein Sci.* 1993). Demonstrates steric over-reward in deeply enclosed catalytic clefts ($1,616\text{ \AA}^2$ BSA).
 
-### Statistical Validation on Genuinely Matched Complexes:
-- **Pearson Correlation ($r$):** **`0.525`**
-- **Spearman Rank Order ($\rho$):** **`0.400`**
+### Descriptive Statistics for Four Retrospective Pose–Affinity Comparisons (Including Proxies):
+- **Sample Size ($N$):** 4 retrospective pose–affinity comparisons (including structural proxies: 1AWR, 1CKA, 1DKX, 1YCR)
+- **Mean Absolute Error (MAE):** **`1.91 kcal/mol`**
 - **Root Mean Square Error (RMSE):** **`2.10 kcal/mol`**
-- **Mean Absolute Error (MAE):** **`1.91 kcal/mol`** across all 4 matched complexes
+- **Pearson Correlation ($r$):** **`0.525`** ($p = 0.4753$)
+- **Spearman Rank Order ($\rho$):** **`0.400`**
 
-> **100% Reproducible:** You can re-run and verify this entire benchmark table on your local workstation in ~10 seconds:
-> ```bash
-> python run_benchmarks.py
-> # or via the CLI:
-> esm-amp-screen benchmark --run-all
-> ```
+> [!IMPORTANT]
+> **Scientific Framing & Scope:** These metrics describe retrospective pose-rescoring consistency across four heterogeneous literature complexes with structural proxies. With $N=4$ and a non-significant Pearson correlation, these statistics serve as an exploratory physical sanity check across varied fold sizes and topologies, not as proof of independent prospective affinity prediction.
 >
-> **Scope & Interpretation:** This benchmark demonstrates rank-ordering consistency and biophysical sanity across bound co-crystal complexes. Like all heuristic and rigid-pose scoring models, it is designed for relative hit triage rather than prospective absolute affinity ($K_d$) prediction.
+> 100% reproducible via `python run_benchmarks.py` or `esm-amp-screen benchmark --run-all`.
 
 ---
 
@@ -371,7 +374,7 @@ If you use **ESM-AMP-Screen** in your research, please cite:
   author = {ESM-AMP-Screen Computational Biology Team},
   title = {ESM-AMP-Screen: High-Throughput ESM-Powered Protein-Peptide Virtual Screening, Physics Engine, & In Silico Lead Optimizer},
   url = {https://github.com/Your-Random-Variable/esm-amp-screen},
-  version = {1.1.1},
+  version = {1.1.2},
   year = {2026}
 }
 ```

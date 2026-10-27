@@ -4,15 +4,16 @@ ESM-AMP-Screen Benchmark: Bound Co-Crystal Pose Rescoring & Sanity Check.
 Evaluates the physics engine, solution thermodynamics, and contact analysis
 on bound co-crystal poses across 6 standardized reference complexes from PepBDB / RCSB PDB:
 1. 1AWR: Cyclophilin A + HAGPIA (6 aa)
-2. 1CKA: Abl SH3 Domain + PPPALPPKK (9 aa)
-3. 1DKX: DnaK Chaperone + NRLLLTG (7 aa)
-4. 1ER8: Endothiapepsin + HPFHLLVY (8 aa)
-5. 1SSH: c-Src SH3 Domain + GPPPAMPARPT (11 aa)
-6. 1YCR: MDM2 Oncoprotein + ETFSDLWKLLPEN (13 aa)
+2. 1CKA: c-Crk N-SH3 + PPPALPPKK (9 aa resolved-core proxy for 10-mer C3G)
+3. 1DKX: DnaK Chaperone SBD (apo, 25°C) + NRLLLTG (7 aa)
+4. 1ER8: Endothiapepsin + H-77 peptidomimetic (8 aa)
+5. 1SSH: Yeast YFR024C-A SH3 + Sla1 peptide (11 aa)
+6. 1YCR: MDM2 Oncoprotein + p53(17-29) (13 aa; 15-mer ITC proxy, 35°C)
 
 Note: This benchmark verifies physical force-field rescoring and rank-order correlation
-on known bound co-crystal geometries. It is a physical consistency sanity check, not a
-prospective blind docking screen or calibrated absolute Kd predictor.
+on known bound co-crystal geometries. It is an exploratory physical consistency sanity check
+(N=4 descriptive pose-affinity comparisons including structural proxies), not a prospective
+blind docking screen or calibrated absolute Kd predictor.
 """
 
 import sys
@@ -34,12 +35,18 @@ from esm_amp_screen.amp_analyzer import (
 from esm_amp_screen.utils import AA_3TO1, logger
 
 # Curated literature experimental reference data and structural provenance:
-# 1AWR: Vajdos et al., Protein Sci 6:2297-2307 (1997); CypA active site + HIV-1 CA (HAGPIA, 6 aa), Kd ~ 5.5 µM (ΔG = -7.18 kcal/mol)
-# 1CKA: Wu et al., Structure 3:215-226 (1995); Knudsen et al., EMBO J 13:827 (1994); Murine c-Crk N-SH3 + C3G peptide (PPPALPPKK, 9 aa), Kd ~ 2.0 µM (ΔG = -7.77 kcal/mol)
-# 1DKX: Zhu et al., Science 272:1606-1614 (1996); Burkholder et al., PNAS 93:10632 (1996); DnaK SBD + λ O peptide (NRLLLTG, 7 aa), Kd ~ 0.4 µM (ΔG = -8.73 kcal/mol)
-# 1YCR: Kussie et al., Science 274:948-953 (1996); MDM2 + p53(17-29) (ETFSDLWKLLPEN, 13 aa); Kd ~ 600 nM (ΔG = -8.49 kcal/mol, measured for p53 15-29)
-# 1SSH: SGX Structural Genomics Consortium (PDB ID: 1SSH, 2003); S. cerevisiae YFR024C-A SH3 + peptide (GPPPAMPARPT, 11 aa). No peer-reviewed Kd (8.0 µM was chicken c-Src 1PRL).
-# 1ER8: Cooper et al., FEBS Lett 174:96-101 (1984); Bailey et al., Protein Sci 2:1155 (1993); Endothiapepsin + H-77 peptidomimetic (D-His-Pro-Phe-His-Leu-[CH2-NH]-Leu-Val-Tyr, 8 aa). (12 nM was canine renin IC50).
+# 1AWR: Vajdos et al., Protein Sci 6:2297-2307 (1997) [structure]; CypA active site + HIV-1 CA (HAGPIA, 6 aa; residues 87-92).
+#       Solution affinity context from HIV-1 capsid binding studies (Kd ~ 5.5 - 16 µM, e.g. Yoo et al., JMB 1997; Gamble et al., Cell 1996; Vajdos et al. 1997), ΔG = -7.18 kcal/mol.
+# 1CKA: Wu et al., Structure 3:215-226 (1995); Knudsen et al., EMBO J 13:827 (1994); Murine c-Crk N-SH3 + C3G peptide.
+#       Crystal pose resolves 9-mer PPPALPPKK (C-terminal Arg disordered), evaluated as a resolved-core proxy for measured 10-mer PPPALPPKKR, Kd ~ 2.0 µM (ΔG = -7.77 kcal/mol).
+# 1DKX: Zhu et al., Science 272:1606-1614 (1996); Burkholder et al., PNAS 93:10632 (1996); E. coli DnaK SBD (residues 389-607) in the apo (nucleotide-free) state
+#       + λ O peptide (NRLLLTG, 7 aa), determined by fluorescence anisotropy at 25°C, Kd ~ 0.4 µM (ΔG = -8.73 kcal/mol). Affinity shifts significantly in ATP-bound state.
+# 1YCR: Kussie et al., Science 274:948-953 (1996) [structure]; Dawson et al., Mol Cancer Res 2:20-30 (2004) [ITC affinity];
+#       MDM2 + p53 core (ETFSDLWKLLPEN, 13 aa resolved core proxy for 15-mer SQETFSDLWKLLPEN); Kd ~ 600 nM determined by ITC at 35°C (308.15 K; ΔG° = -8.77 kcal/mol; -8.49 kcal/mol if 298.15 K conversion).
+# 1SSH: SGX Structural Genomics Consortium (PDB ID: 1SSH, deposited 2004, released 2005); S. cerevisiae YFR024C-A SH3 + Sla1-derived peptide (11 resolved aa of 12-mer).
+#       Retained as structural pose check (no peer-reviewed solution Kd; 8.0 µM was chicken c-Src 1PRL).
+# 1ER8: Cooper et al., FEBS Lett 174:96-101 (1984); Bailey et al., Protein Sci 2:1155 (1993); Endothiapepsin + H-77 peptidomimetic
+#       (D-His-Pro-Phe-His-Leu-[CH2-NH]-Leu-Val-Tyr, 8 aa) containing reduced isostere bond. (12 nM was canine renin IC50).
 LITERATURE_BENCHMARKS = {
     "1AWR": {
         "target": "Cyclophilin A (CypA)",
@@ -51,14 +58,14 @@ LITERATURE_BENCHMARKS = {
     },
     "1CKA": {
         "target": "c-Crk N-SH3 Domain",
-        "peptide_name": "C3G (PPPALPPKK)",
+        "peptide_name": "C3G (9-mer core proxy)",
         "exp_kd_molar": 2.0e-6,
-        "exp_kd_str": "2.0 µM",
+        "exp_kd_str": "2.0 µM*",
         "exp_delta_g": -7.77,
         "citation": "Wu et al., Structure 3:215 (1995)"
     },
     "1DKX": {
-        "target": "DnaK Chaperone SBD",
+        "target": "DnaK SBD (apo, 25°C)",
         "peptide_name": "λ O model (NRLLLTG)",
         "exp_kd_molar": 4.0e-7,
         "exp_kd_str": "0.4 µM",
@@ -75,19 +82,19 @@ LITERATURE_BENCHMARKS = {
     },
     "1SSH": {
         "target": "Yeast YFR024C-A SH3",
-        "peptide_name": "GPPPAMPARPT",
+        "peptide_name": "Sla1 (GPPPAMPARPT)",
         "exp_kd_molar": None,
         "exp_kd_str": "Unreported",
         "exp_delta_g": None,
-        "citation": "SGX Structural Genomics (2003)"
+        "citation": "SGX Consortium (2004)"
     },
     "1YCR": {
         "target": "MDM2 Oncoprotein",
-        "peptide_name": "p53 (ETFSDLWKLLPEN)",
+        "peptide_name": "p53 (15-mer ITC proxy)",
         "exp_kd_molar": 6.0e-7,
-        "exp_kd_str": "600 nM*",
+        "exp_kd_str": "600 nM* (35°C)",
         "exp_delta_g": -8.49,
-        "citation": "Kussie et al., Science 274:948 (1996)"
+        "citation": "Kussie 1996 / Dawson 2004"
     }
 }
 
@@ -198,7 +205,7 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         )
     print("-" * len(header))
 
-    # Compute statistics on genuinely matched experimental complexes
+    # Compute descriptive statistics on retrospective pose-affinity comparisons (including structural proxies)
     valid = [r for r in results if r["exp_delta_g"] is not None]
     if len(valid) >= 3:
         pred_arr = np.array([r["pred_delta_g"] for r in valid])
@@ -208,12 +215,14 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         rmse = float(np.sqrt(np.mean((pred_arr - exp_arr) ** 2)))
         mae = float(np.mean(np.abs(pred_arr - exp_arr)))
 
-        print("\nStatistical Validation on Genuinely Matched Complexes:")
-        print(f"  • Matched Complexes:        {len(valid)} ({', '.join(r['pdb_id'] for r in valid)})")
-        print(f"  • Pearson Correlation (r):  {r_val:.3f} (p = {p_val:.4f})")
-        print(f"  • Spearman Rank Order (ρ):  {rho_val:.3f}")
-        print(f"  • Root Mean Square Error:   {rmse:.2f} kcal/mol")
-        print(f"  • Mean Absolute Error:      {mae:.2f} kcal/mol")
+        print("\nDescriptive Statistics for Four Retrospective Pose–Affinity Comparisons (Including Structural Proxies):")
+        print("  • Note: n=4 exploratory sample with structural proxies (1CKA 9-mer vs 10-mer; 1YCR 13-mer vs 15-mer at 35°C).")
+        print("    Descriptive metrics only; does not establish independent predictive validation.")
+        print(f"  • Matched / Proxy Pairs:     {len(valid)} ({', '.join(r['pdb_id'] for r in valid)})")
+        print(f"  • Pearson Correlation (r):   {r_val:.3f} (p = {p_val:.4f})")
+        print(f"  • Spearman Rank Order (ρ):   {rho_val:.3f}")
+        print(f"  • Root Mean Square Error:    {rmse:.2f} kcal/mol")
+        print(f"  • Mean Absolute Error:       {mae:.2f} kcal/mol")
     print("="*115)
     print(f"\n[OK] Validation results saved to: {out_csv}\n")
     return df
