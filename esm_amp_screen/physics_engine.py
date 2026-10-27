@@ -45,8 +45,10 @@ SOLVATION_PARAMS: Dict[str, float] = {
     "P":  +0.012,
 }
 
-# AMBER ff14SB Standard Partial Charges (elementary charge units e) for all-atom structures
-# References: Maier et al., J. Chem. Theory Comput. 2015; Hornak et al., Proteins 2006
+# Reference partial charges with verified formal-charge sums at pH 7.4
+# (Adapted from AMBER ff14SB: Maier et al., JCTC 2015; Hornak et al., Proteins 2006).
+# Note: Production scoring exclusively uses HEAVY_ATOM_CHARGES (coarse united-atom model)
+# for robust rank-ordering of both heavy-atom and mixed-H structures.
 ALL_ATOM_CHARGES: Dict[Tuple[str, str], float] = {
     # --- Arginine guanidinium (+1 net formal charge: sum = +1.0000) ---
     ("ARG", "NE"):  -0.5295, ("ARG", "HE"):   0.3456,

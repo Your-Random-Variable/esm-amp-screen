@@ -88,6 +88,8 @@ The physics and solution thermodynamics engines are evaluated on **6 standardize
 > # or via the CLI:
 > esm-amp-screen benchmark --run-all
 > ```
+>
+> **Scope & Interpretation:** This benchmark demonstrates rank-ordering consistency and biophysical sanity across bound co-crystal complexes. Like all heuristic and rigid-pose scoring models, it is designed for hit triage and relative ranking rather than prospective absolute affinity ($K_d$) prediction.
 
 ---
 
