@@ -1,0 +1,7 @@
+pdb_id,target,peptide_name,sequence,length,net_charge_z,e_vdw,e_elec,e_desolv,haddock_score,bsa_angstrom2,hbonds,salt_bridges,hydrophobic_contacts,clashes,entropy_penalty,pred_delta_g,pred_kd,exp_delta_g,exp_kd
+1AWR,Cyclophilin A (CypA),HAGPIA substrate,HAGPIA,6,-0.16,-24.4,-2.0,-4.4,-29.2,780.3,7,0,51,0,2.61,-5.57,83.2 µM,-7.18,5.5 µM
+1CKA,Abl SH3 Domain,PPPALPPKK (Abl-p41),PPPALPPKK,9,1.8,-27.6,-34.0,-7.6,-42.0,937.7,7,4,47,0,2.91,-8.86,319.7 nM,-7.95,1.5 µM
+1DKX,DnaK Chaperone SBD,NRLLLTG (DnaK model),NRLLLTG,7,0.8,-31.5,-3.5,-7.3,-39.5,1093.4,10,0,29,0,3.93,-7.13,5.9 µM,-8.73,0.4 µM
+1ER8,Endothiapepsin,HPFHLLVY (H-142 analogue),HPFHLLVY,8,-0.13,-61.2,0.1,-11.5,-72.7,1616.3,12,0,36,0,3.82,-16.53,0.8 pM,-10.8,12 nM
+1SSH,c-Src SH3 Domain,GPPPAMPARPT (Src-p41),GPPPAMPARPT,11,0.8,-29.7,-15.5,-6.9,-39.7,913.7,6,6,21,0,3.41,-7.7,2.3 µM,-6.95,8.0 µM
+1YCR,MDM2 Oncoprotein,ETFSDLWKLLPEN (p53 wt),ETFSDLWKLLPEN,13,-2.2,-49.8,-10.0,-12.7,-64.5,1440.0,10,1,51,0,6.21,-11.85,2.1 nM,-8.49,600 nM
