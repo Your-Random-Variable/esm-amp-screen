@@ -16,11 +16,17 @@ from sklearn.cluster import DBSCAN
 from esm_amp_screen.utils import logger, ensure_dir, which_tool
 
 
-def clean_receptor_pdb(input_pdb: Path, cleaned_pdb: Path, remove_hetero: bool = True) -> Path:
+def clean_receptor_pdb(
+    input_pdb: Path,
+    cleaned_pdb: Path,
+    remove_hetero: bool = True,
+    receptor_chain: Optional[str] = None
+) -> Path:
     """
     Cleans target receptor PDB using gemmi:
     - Removes water molecules (HOH, WAT, DOD).
     - Optionally removes non-protein heteroatoms / crystallographic artifacts.
+    - If receptor_chain is specified, isolates the requested receptor chain (stripping co-crystal ligands/peptides).
     - Preserves standard amino acid residues.
     """
     input_pdb = Path(input_pdb)
@@ -28,10 +34,31 @@ def clean_receptor_pdb(input_pdb: Path, cleaned_pdb: Path, remove_hetero: bool =
     ensure_dir(cleaned_pdb.parent)
 
     doc = gemmi.read_structure(str(input_pdb))
-    if remove_hetero:
-        doc.remove_ligands_and_waters()
-    else:
-        doc.remove_waters()
+    doc.setup_entities()
+    try:
+        if remove_hetero:
+            doc.remove_ligands_and_waters()
+        else:
+            doc.remove_waters()
+    except Exception:
+        # Fallback manual cleaning of crystallographic waters and heteroatoms
+        for model in doc:
+            for chain in model:
+                to_remove = []
+                for i, res in enumerate(chain):
+                    if res.name.upper() in ["HOH", "WAT", "DOD", "H2O", "TIP3"]:
+                        to_remove.append(i)
+                    elif remove_hetero and res.het_flag == 'H':
+                        to_remove.append(i)
+                for i in reversed(to_remove):
+                    del chain[i]
+
+    # If specific receptor chain requested, filter out extraneous chains (e.g. bound co-crystal peptides)
+    if receptor_chain:
+        for model in doc:
+            chains_to_del = [chain.name for chain in model if chain.name != receptor_chain]
+            for c_name in chains_to_del:
+                del model[c_name]
     
     doc.write_minimal_pdb(str(cleaned_pdb))
     logger.info(f"Cleaned receptor saved to {cleaned_pdb.name}")

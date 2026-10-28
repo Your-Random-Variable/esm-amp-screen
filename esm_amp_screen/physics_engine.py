@@ -306,6 +306,7 @@ def calculate_haddock_physics_score(
             "bsa": 0.0, "e_air": 0.0, "haddock_score": 0.0
         }
 
+    all_atoms = rec_atoms + pep_atoms
     r_coords = np.array([a["coord"] for a in rec_atoms])
     p_coords = np.array([a["coord"] for a in pep_atoms])
     all_coords = np.array([a["coord"] for a in all_atoms])

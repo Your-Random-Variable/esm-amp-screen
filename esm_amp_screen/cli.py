@@ -30,7 +30,12 @@ from esm_amp_screen.amp_analyzer import (
     predict_hemolytic_risk_and_selectivity,
     estimate_solution_affinity
 )
-from esm_amp_screen.reporter import export_screening_report, convert_docked_pdbqt_to_pdb
+from esm_amp_screen.reporter import (
+    export_screening_report,
+    convert_docked_pdbqt_to_pdb,
+    create_cocomplex_pdb,
+    count_docked_modes
+)
 from esm_amp_screen.ml_scorer import MLPeptideScorer
 
 
@@ -49,13 +54,14 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
     # 2. Receptor resolution
     receptor_arg = args.receptor
+    rec_chain = getattr(args, "rec_chain", "A")
     rec_pdb_path = out_dir / "target_receptor.pdb"
     if Path(receptor_arg).exists():
-        rec_pdb_path = clean_receptor_pdb(Path(receptor_arg), rec_pdb_path)
+        rec_pdb_path = clean_receptor_pdb(Path(receptor_arg), rec_pdb_path, receptor_chain=rec_chain)
     elif len(receptor_arg) == 4 and receptor_arg.isalnum():
         # RCSB PDB ID
         fetch_rcsb_pdb(receptor_arg, rec_pdb_path)
-        rec_pdb_path = clean_receptor_pdb(rec_pdb_path, out_dir / "target_receptor_clean.pdb")
+        rec_pdb_path = clean_receptor_pdb(rec_pdb_path, out_dir / "target_receptor_clean.pdb", receptor_chain=rec_chain)
     else:
         raise FileNotFoundError(f"Receptor file not found and not a valid 4-letter PDB ID: {receptor_arg}")
 
@@ -426,7 +432,14 @@ def run_pipeline(args: argparse.Namespace) -> None:
         print("="*70 + "\n")
         logger.info(f"Evaluating top {stage3_n} complexes with HADDOCK explicit physics & consensus scoring...")
 
-        ml_scorer = MLPeptideScorer(model_path=getattr(args, "ml_model", None))
+        # Determine ML model path (auto-load default pre-trained ensemble if present)
+        model_file = getattr(args, "ml_model", None)
+        if model_file is None:
+            default_pkg_model = Path(__file__).resolve().parent.parent / "data" / "trained_complex_ensemble.joblib"
+            if default_pkg_model.exists():
+                model_file = default_pkg_model
+        ml_scorer = MLPeptideScorer(model_path=model_file)
+
         complex_dir = out_dir / "top_complexes"
         pocket_list = (
             [r.strip() for r in args.pocket_residues.split(",")]
@@ -436,36 +449,92 @@ def run_pipeline(args: argparse.Namespace) -> None:
         if pocket_list:
             logger.info(f"Stage 3 AIR Restraints: applying pocket restraints to {len(pocket_list)} target residues.")
 
+        rescore_k = max(1, getattr(args, "rescore_modes", 5))
+
         for hit in refined_summary_data[:stage3_n]:
             pep_id = hit["pep_id"]
-            cpx_pdb = hit.get("complex_pdb")
-            if not cpx_pdb or not Path(cpx_pdb).exists():
-                candidate_cpx = complex_dir / f"complex_{pep_id}.pdb"
-                if candidate_cpx.exists():
-                    cpx_pdb = candidate_cpx
+            docked_pdbqt = hit.get("docked_pdbqt")
+            orig_pdb = out_dir / "peptides_pdb" / f"{pep_id}.pdb"
+            if not orig_pdb.exists() and library_arg.is_dir():
+                cand_orig = library_arg / f"{pep_id}.pdb"
+                if cand_orig.exists():
+                    orig_pdb = cand_orig
 
-            if cpx_pdb and Path(cpx_pdb).exists():
+            best_ml_res = None
+            best_cpx_pdb = None
+            best_mode_idx = 1
+            best_consensus = -9999.0
+
+            total_avail_modes = count_docked_modes(Path(docked_pdbqt)) if docked_pdbqt else 1
+            modes_to_test = min(rescore_k, max(1, total_avail_modes))
+
+            for mode_idx in range(1, modes_to_test + 1):
+                mode_pose_pdb = complex_dir / f"{pep_id}_mode{mode_idx}.pdb"
+                if docked_pdbqt and Path(docked_pdbqt).exists():
+                    conv_res = convert_docked_pdbqt_to_pdb(
+                        Path(docked_pdbqt),
+                        mode_pose_pdb,
+                        obabel_bin=obabel_bin,
+                        model_idx=mode_idx
+                    )
+                    if conv_res is None or not mode_pose_pdb.exists():
+                        break
+
+                    if orig_pdb.exists():
+                        pristine_mode_pdb = complex_dir / f"{pep_id}_mode{mode_idx}_pristine.pdb"
+                        pose_to_use = create_docked_pristine_pdb(orig_pdb, mode_pose_pdb, pristine_mode_pdb)
+                    else:
+                        pose_to_use = mode_pose_pdb
+
+                    mode_cpx = complex_dir / f"complex_{pep_id}_mode{mode_idx}.pdb"
+                    create_cocomplex_pdb(rec_pdb_path, pose_to_use, mode_cpx)
+                else:
+                    mode_cpx = hit.get("complex_pdb")
+                    if not mode_cpx or not Path(mode_cpx).exists():
+                        candidate_cpx = complex_dir / f"complex_{pep_id}.pdb"
+                        if candidate_cpx.exists():
+                            mode_cpx = candidate_cpx
+                        else:
+                            break
+
                 try:
-                    if getattr(args, "relax", False):
+                    cpx_to_eval = Path(mode_cpx)
+                    if getattr(args, "relax", False) and mode_idx == 1:
                         from esm_amp_screen.lead_optimizer import relax_complex_interface
-                        relaxed_cpx = Path(cpx_pdb).with_name(f"{Path(cpx_pdb).stem}_relaxed.pdb")
-                        cpx_pdb = relax_complex_interface(
-                            Path(cpx_pdb),
+                        relaxed_cpx = cpx_to_eval.with_name(f"{cpx_to_eval.stem}_relaxed.pdb")
+                        cpx_to_eval = relax_complex_interface(
+                            cpx_to_eval,
                             relaxed_cpx,
                             receptor_chain="A",
                             peptide_chain="B",
                             steps=50
                         )
-                        hit["complex_pdb"] = str(cpx_pdb)
 
                     ml_res = ml_scorer.score_complex(
-                        complex_pdb=cpx_pdb,
+                        complex_pdb=cpx_to_eval,
                         hit_meta=hit,
                         pocket_residues=pocket_list
                     )
-                    hit.update(ml_res)
+                    cons = ml_res.get("consensus_score", -9999.0)
+                    if cons > best_consensus or best_ml_res is None:
+                        best_consensus = cons
+                        best_ml_res = ml_res
+                        best_cpx_pdb = cpx_to_eval
+                        best_mode_idx = mode_idx
                 except Exception as e:
-                    logger.warning(f"Physics scoring failed for {pep_id}: {e}")
+                    logger.warning(f"Physics scoring failed for {pep_id} mode {mode_idx}: {e}")
+
+            if best_ml_res is not None:
+                hit.update(best_ml_res)
+                hit["best_mode"] = best_mode_idx
+                if best_cpx_pdb and Path(best_cpx_pdb).exists():
+                    final_cpx = complex_dir / f"complex_{pep_id}.pdb"
+                    if Path(best_cpx_pdb).resolve() != final_cpx.resolve():
+                        import shutil
+                        shutil.copy2(best_cpx_pdb, final_cpx)
+                    hit["complex_pdb"] = str(final_cpx)
+            else:
+                hit["best_mode"] = 1
 
         # Re-export final reports with Consensus and Physics fields included
         if refine_n > 0:
@@ -487,10 +556,10 @@ def run_pipeline(args: argparse.Namespace) -> None:
         )
 
         # Print Stage 3 Consensus Leaderboard
-        print("\n" + "="*135)
+        print("\n" + "="*145)
         print("            STAGE 3: HADDOCK PHYSICS & CONSENSUS LEADERBOARD")
-        print("="*135)
-        header = f"{'Rank':<5} {'Peptide ID':<16} {'Vina ΔG':<9} {'HADDOCK':<9} {'BSA (Å²)':<9} {'Cons. ΔG':<9} {'Pred Kd':<9} {'Sol. Kd':<10} {'Toxicity':<14} {'Consensus':<10}"
+        print("="*145)
+        header = f"{'Rank':<5} {'Peptide ID':<16} {'Mode':<6} {'Vina ΔG':<9} {'HADDOCK':<9} {'BSA (Å²)':<9} {'Cons. ΔG':<9} {'Pred Kd':<9} {'Sol. Kd':<10} {'Toxicity':<14} {'Consensus':<10}"
         print(header)
         print("-" * len(header))
         for row in refined_summary_data[:stage3_n]:
@@ -501,13 +570,14 @@ def run_pipeline(args: argparse.Namespace) -> None:
             sol_kd_str = str(row.get('solution_kd', 'N/A'))
             tox_str = str(row.get('hemolytic_risk', 'Low'))
             cons_str = f"{row.get('consensus_score', 0.0):.2f}" if 'consensus_score' in row else "N/A"
+            mode_str = f"M{row.get('best_mode', 1)}"
 
             print(
-                f"{row.get('rank', 1):<5} {row['pep_id']:<16} {row['affinity']:<9.2f} "
+                f"{row.get('rank', 1):<5} {row['pep_id']:<16} {mode_str:<6} {row['affinity']:<9.2f} "
                 f"{hscore_str:<9} {bsa_str:<9} {ml_dg_str:<9} "
                 f"{pred_kd_str:<9} {sol_kd_str:<10} {tox_str:<14} {cons_str:<10}"
             )
-        print("="*135 + "\n")
+        print("="*145 + "\n")
     elif refine_n > 0:
         # Print Stage 2 Leaderboard if Stage 3 was disabled
         print("\n" + "="*95)
@@ -556,6 +626,7 @@ def main():
     # Command: run / screen / target (all-in-one target-directed virtual screening)
     p_run = subparsers.add_parser("run", aliases=["screen", "target"], help="Run target-directed protein-peptide virtual screening pipeline (multi-mode docking + HADDOCK physics)")
     p_run.add_argument("--receptor", "-r", required=True, help="Receptor PDB file path or 4-letter RCSB ID (e.g. 2mlt)")
+    p_run.add_argument("--rec-chain", default="A", help="Receptor chain ID to dock against (default: A). Extraneous co-crystal chains are safely removed.")
     p_run.add_argument("--library", "-l", required=True, help="Peptide library FASTA file, or folder of PDB structures")
     p_run.add_argument("--output", "-o", default="./screening_results", help="Output directory")
     p_run.add_argument("--center", nargs=3, type=float, help="Grid box center (x y z in Å). Auto-calculated if omitted.")
@@ -583,6 +654,8 @@ def main():
     p_run.add_argument("--refine-exhaustiveness", type=int, default=4, help="Stage 2: Vina search exhaustiveness for flexible sidechain refinement (default: 4)")
     p_run.add_argument("--num-modes", type=int, default=9, help="Max binding modes per peptide (default: 9)")
     p_run.add_argument("--top", type=int, default=5, help="Number of top hits to export complex PDBs for (default: 5)")
+    p_run.add_argument("--rescore-modes", type=int, default=5,
+                       help="Number of docked binding modes to evaluate and rescore per top candidate in Stage 3 (default: 5)")
     p_run.add_argument("--hf-token", help="HuggingFace API token for ESMFold inference endpoint")
     p_run.add_argument("--vina-bin", help="Path to AutoDock Vina binary (default: search PATH)")
     p_run.add_argument("--obabel-bin", help="Path to OpenBabel binary (default: search PATH)")
@@ -626,6 +699,7 @@ def main():
     p_score.add_argument("--pep-chain", default="B", help="Peptide chain ID (default: B)")
     p_score.add_argument("--pocket-residues", help="Comma-separated target pocket residues (e.g. 'A:45,A:48') for AIR evaluation")
     p_score.add_argument("--relax", action="store_true", default=False, help="Perform interface force-field relaxation before scoring")
+    p_score.add_argument("--ml-model", help="Path to custom pre-trained ML model file (.pkl / .joblib)")
     p_score.add_argument("--output", "-o", help="Optional output directory to save relaxed complex and scoring report")
     p_score.set_defaults(func=run_score_cli)
 
@@ -856,7 +930,13 @@ def run_score_cli(args: argparse.Namespace) -> None:
         sequence=pep_seq
     )
 
-    ml_scorer = MLPeptideScorer()
+    model_file = getattr(args, "ml_model", None)
+    if model_file is None:
+        default_pkg_model = Path(__file__).resolve().parent.parent / "data" / "trained_complex_ensemble.joblib"
+        if default_pkg_model.exists():
+            model_file = default_pkg_model
+
+    ml_scorer = MLPeptideScorer(model_path=model_file)
     ml_res = ml_scorer.score_complex(
         complex_pdb=eval_pdb,
         hit_meta={"pep_id": complex_pdb.stem, "sequence": pep_seq},

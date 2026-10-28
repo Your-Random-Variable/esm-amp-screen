@@ -4,6 +4,7 @@ Exports ranked CSV leaderboard, target-peptide co-complex PDB structures,
 and interactive PyMOL visualization scripts.
 """
 
+import re
 import math
 import subprocess
 from pathlib import Path
@@ -39,36 +40,52 @@ def estimate_kd(affinity_kcal_mol: float, temp_kelvin: float = 298.15) -> str:
         return f"{kd_molar * 1e3:.1f} mM"
 
 
+def count_docked_modes(docked_pdbqt: Path) -> int:
+    """Counts the number of distinct docked MODEL blocks in a PDBQT file."""
+    if not docked_pdbqt or not Path(docked_pdbqt).exists():
+        return 0
+    content = Path(docked_pdbqt).read_text(encoding="utf-8", errors="ignore")
+    return len(re.findall(r"^MODEL\b", content, re.MULTILINE))
+
+
 def convert_docked_pdbqt_to_pdb(
     docked_pdbqt: Path,
     out_pdb: Path,
-    obabel_bin: str = "obabel"
+    obabel_bin: str = "obabel",
+    model_idx: int = 1
 ) -> Optional[Path]:
-    """Converts the top pose (Model 1) of a docked PDBQT file to PDB using OpenBabel."""
+    """Converts a specific pose (Model N, default: Model 1) of a docked PDBQT file to PDB using OpenBabel."""
     out_pdb = Path(out_pdb)
     docked_pdbqt = Path(docked_pdbqt)
     ensure_dir(out_pdb.parent)
 
     content = docked_pdbqt.read_text(encoding="utf-8", errors="ignore")
-    temp_pdbqt = out_pdb.with_suffix(".pose1.temp.pdbqt")
+    temp_pdbqt = out_pdb.with_suffix(f".pose{model_idx}.temp.pdbqt")
 
     try:
-        if "MODEL " in content:
-            m1_lines = []
-            in_m1 = False
+        if "MODEL " in content or "MODEL\t" in content:
+            in_target_model = False
+            current_model_idx = 0
+            m_lines = []
             for line in content.splitlines():
-                if line.startswith("MODEL 1") or line.startswith("MODEL    1") or (not in_m1 and line.startswith("MODEL")):
-                    in_m1 = True
-                if in_m1:
-                    m1_lines.append(line)
+                if line.startswith("MODEL"):
+                    current_model_idx += 1
+                    if current_model_idx == model_idx:
+                        in_target_model = True
+                        m_lines.append(line)
+                        continue
+                if in_target_model:
+                    m_lines.append(line)
                     if line.startswith("ENDMDL"):
                         break
-            if m1_lines:
-                temp_pdbqt.write_text("\n".join(m1_lines), encoding="utf-8")
+            if m_lines:
+                temp_pdbqt.write_text("\n".join(m_lines), encoding="utf-8")
                 dock_source = temp_pdbqt
             else:
-                dock_source = docked_pdbqt
+                return None
         else:
+            if model_idx > 1:
+                return None
             dock_source = docked_pdbqt
 
         cmd = [obabel_bin, "-ipdbqt", str(dock_source), "-opdb", "-O", str(out_pdb)]
