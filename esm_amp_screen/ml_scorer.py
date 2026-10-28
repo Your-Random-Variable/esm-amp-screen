@@ -15,8 +15,14 @@ import gemmi
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 import joblib
 
-from esm_amp_screen.utils import logger
+from esm_amp_screen.utils import logger, AA_3TO1
 from esm_amp_screen.physics_engine import calculate_haddock_physics_score
+from esm_amp_screen.amp_analyzer import (
+    analyze_cocomplex_contacts,
+    calculate_net_charge,
+    calculate_hydrophobic_moment,
+    calculate_boman_index
+)
 
 # Complete set of 4 biological elements -> 10 unique unordered pairs
 ELEMENTS = ["C", "N", "O", "S"]
@@ -173,14 +179,19 @@ class MLPeptideScorer:
     def score_complex(
         self,
         complex_pdb: Path,
-        hit_meta: Dict[str, Any],
+        hit_meta: Optional[Dict[str, Any]] = None,
         pocket_residues: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Calculates HADDOCK physics, RF structural fingerprints, and ML-predicted affinity.
         Returns full dict of physical & machine-learned metrics without label leakage.
+        Automatically extracts interface contacts and sequence properties if missing from hit_meta.
         """
         complex_pdb = Path(complex_pdb)
+        if hit_meta is None:
+            hit_meta = {}
+        else:
+            hit_meta = dict(hit_meta)
 
         # 1. Physics Engine Evaluation
         physics = calculate_haddock_physics_score(
@@ -191,10 +202,43 @@ class MLPeptideScorer:
         # 2. Structural Fingerprint
         fp = extract_structural_fingerprint(complex_pdb)
 
-        # 3. Assemble Feature Vector (exactly 34 dimensions, pure physical chemistry)
-        pep_len = float(hit_meta.get("length", len(hit_meta.get("sequence", "")))) if (hit_meta.get("length") or hit_meta.get("sequence")) else 12.0
-        dock_energy = float(hit_meta.get("affinity", hit_meta.get("docking_energy", -8.0)))
+        # 3. Intermolecular contacts (auto-extract if missing)
+        if any(k not in hit_meta for k in ("salt_bridges", "hbonds", "hydrophobic_contacts", "clashes")):
+            try:
+                c_data = analyze_cocomplex_contacts(complex_pdb, receptor_chain="A", peptide_chain="B")
+                for k, v in c_data.items():
+                    if k not in hit_meta:
+                        hit_meta[k] = v
+            except Exception:
+                pass
 
+        # 4. Sequence & AMP biophysics (auto-extract if missing)
+        seq = hit_meta.get("sequence")
+        if not seq:
+            try:
+                st = gemmi.read_structure(str(complex_pdb))
+                seq = "".join(
+                    AA_3TO1.get(res.name.upper(), "")
+                    for m in st for c in m if c.name == "B"
+                    for res in c if res.name.upper() in AA_3TO1
+                )
+                if seq:
+                    hit_meta["sequence"] = seq
+            except Exception:
+                pass
+
+        if seq:
+            if "net_charge_z" not in hit_meta and "net_charge" not in hit_meta:
+                hit_meta["net_charge_z"] = calculate_net_charge(seq)
+            if "hydrophobic_moment_muH" not in hit_meta and "hydrophobic_moment" not in hit_meta:
+                hit_meta["hydrophobic_moment_muH"] = calculate_hydrophobic_moment(seq)
+            if "boman_index" not in hit_meta:
+                hit_meta["boman_index"] = calculate_boman_index(seq)
+
+        pep_len = float(hit_meta.get("length", len(seq) if seq else 12.0))
+        dock_energy = float(hit_meta.get("affinity", hit_meta.get("docking_energy", physics["haddock_score"] * 0.28)))
+
+        # Assemble Feature Vector (exactly 34 dimensions, pure physical chemistry)
         feat_vec = []
         for e1, e2 in ELEMENT_PAIRS:
             feat_vec.append(fp.get(f"pair_{e1}_{e2}_close", 0.0))
@@ -211,8 +255,8 @@ class MLPeptideScorer:
             float(hit_meta.get("hbonds", 0)),
             float(hit_meta.get("hydrophobic_contacts", 0)),
             float(hit_meta.get("clashes", 0)),
-            float(hit_meta.get("net_charge_z", 0.0)),
-            float(hit_meta.get("hydrophobic_moment_muH", 0.0)),
+            float(hit_meta.get("net_charge_z", hit_meta.get("net_charge", 0.0))),
+            float(hit_meta.get("hydrophobic_moment_muH", hit_meta.get("hydrophobic_moment", 0.0))),
             float(hit_meta.get("boman_index", 0.0)),
             pep_len
         ])

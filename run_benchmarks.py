@@ -166,9 +166,25 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         pred_kd = sol_aff["solution_kd"]
         entropy_pen = sol_aff["entropy_penalty"]
 
-        # 6. Calibrated 35D ML Ensemble Regressor
+        # 6. Calibrated 34D ML Ensemble Regressor
         if ml_scorer and ml_scorer.is_calibrated:
-            ml_res = ml_scorer.score_complex(pdb_path, hit_meta={"pep_id": pdb_id, "sequence": seq})
+            ml_res = ml_scorer.score_complex(
+                pdb_path,
+                hit_meta={
+                    "pep_id": pdb_id,
+                    "sequence": seq,
+                    "length": len(seq),
+                    "affinity": pred_delta_g,
+                    "docking_energy": pred_delta_g,
+                    "hbonds": hbonds,
+                    "salt_bridges": salt_bridges,
+                    "hydrophobic_contacts": hydrophobic,
+                    "clashes": clashes,
+                    "net_charge_z": z,
+                    "hydrophobic_moment_muH": mu_h,
+                    "boman_index": boman,
+                }
+            )
             ml_delta_g = ml_res["ml_delta_g"]
             ml_kd = ml_res["ml_kd"]
             ml_pkd = ml_res["ml_pkd"]
@@ -244,7 +260,7 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
             ml_arr = np.array([r["ml_delta_g"] for r in valid])
             ml_mae = float(np.mean(np.abs(ml_arr - exp_arr)))
             ml_rmse = float(np.sqrt(np.mean((ml_arr - exp_arr) ** 2)))
-            print(f"  • 35D Trained ML Ensemble:   MAE = {ml_mae:.2f} kcal/mol, RMSE = {ml_rmse:.2f} kcal/mol")
+            print(f"  • 34D Trained ML Ensemble:   MAE = {ml_mae:.2f} kcal/mol, RMSE = {ml_rmse:.2f} kcal/mol")
     print("="*115)
     print(f"\n[OK] Validation results saved to: {out_csv}\n")
     return df
