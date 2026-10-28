@@ -33,6 +33,7 @@ from esm_amp_screen.amp_analyzer import (
     calculate_boman_index
 )
 from esm_amp_screen.utils import AA_3TO1, logger
+from esm_amp_screen.ml_scorer import MLPeptideScorer
 
 # Curated literature experimental reference data and structural provenance:
 # 1AWR: Vajdos et al., Protein Sci 6:2297-2307 (1997) [structure]; CypA active site + HIV-1 CA (HAGPIA, 6 aa; residues 87-92).
@@ -116,6 +117,9 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
     print("="*115)
     print(f"Scanning benchmark directory: {benchmarks_dir} ({len(pdb_files)} complexes)\n")
 
+    ml_model_file = Path(__file__).resolve().parent / "data" / "trained_complex_ensemble.joblib"
+    ml_scorer = MLPeptideScorer(model_path=ml_model_file) if ml_model_file.exists() else None
+
     for pdb_path in pdb_files:
         pdb_id = pdb_path.stem.upper()
         meta = LITERATURE_BENCHMARKS.get(pdb_id, {
@@ -162,6 +166,17 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         pred_kd = sol_aff["solution_kd"]
         entropy_pen = sol_aff["entropy_penalty"]
 
+        # 6. Calibrated 35D ML Ensemble Regressor
+        if ml_scorer and ml_scorer.is_calibrated:
+            ml_res = ml_scorer.score_complex(pdb_path, hit_meta={"pep_id": pdb_id, "sequence": seq})
+            ml_delta_g = ml_res["ml_delta_g"]
+            ml_kd = ml_res["ml_kd"]
+            ml_pkd = ml_res["ml_pkd"]
+        else:
+            ml_delta_g = None
+            ml_kd = "N/A"
+            ml_pkd = None
+
         row = {
             "pdb_id": pdb_id,
             "target": meta["target"],
@@ -181,6 +196,9 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
             "entropy_penalty": round(entropy_pen, 2),
             "pred_delta_g": round(pred_delta_g, 2),
             "pred_kd": pred_kd,
+            "ml_delta_g": round(ml_delta_g, 2) if ml_delta_g is not None else None,
+            "ml_kd": ml_kd,
+            "ml_pkd": ml_pkd,
             "exp_delta_g": meta["exp_delta_g"],
             "exp_kd": meta["exp_kd_str"]
         }
@@ -191,17 +209,18 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
     df.to_csv(out_csv, index=False)
 
     # Print summary table
-    header = f"{'PDB':<6} {'Target Receptor':<22} {'Seq (L)':<16} {'Evdw':<7} {'Eelec':<7} {'HADDOCK':<9} {'BSA(Å²)':<9} {'Pred ΔG':<9} {'Exp ΔG':<8} {'Pred Kd':<10} {'Exp Kd':<8}"
+    header = f"{'PDB':<6} {'Target Receptor':<20} {'Seq (L)':<15} {'HADDOCK':<9} {'BSA(Å²)':<8} {'Phys ΔG':<8} {'ML ΔG':<8} {'Exp ΔG':<8} {'Phys Kd':<10} {'ML Kd':<10} {'Exp Kd':<8}"
     print(header)
     print("-" * len(header))
     for r in results:
         seq_str = f"{r['sequence']} ({r['length']})"
         exp_dg_str = f"{r['exp_delta_g']:.2f}" if r['exp_delta_g'] is not None else "N/A"
+        ml_dg_str = f"{r['ml_delta_g']:.2f}" if r['ml_delta_g'] is not None else "N/A"
         print(
-            f"{r['pdb_id']:<6} {r['target'][:20]:<22} {seq_str:<16} "
-            f"{r['e_vdw']:<7.1f} {r['e_elec']:<7.1f} {r['haddock_score']:<9.1f} "
-            f"{r['bsa_angstrom2']:<9.0f} {r['pred_delta_g']:<9.2f} {exp_dg_str:<8} "
-            f"{r['pred_kd']:<10} {r['exp_kd']:<8}"
+            f"{r['pdb_id']:<6} {r['target'][:18]:<20} {seq_str:<15} "
+            f"{r['haddock_score']:<9.1f} {r['bsa_angstrom2']:<8.0f} "
+            f"{r['pred_delta_g']:<8.2f} {ml_dg_str:<8} {exp_dg_str:<8} "
+            f"{r['pred_kd']:<10} {r['ml_kd']:<10} {r['exp_kd']:<8}"
         )
     print("-" * len(header))
 
@@ -219,10 +238,13 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         print("  • Note: n=4 exploratory sample with structural proxies (1CKA 9-mer vs 10-mer; 1YCR 13-mer vs 15-mer at 35°C).")
         print("    Descriptive metrics only; does not establish independent predictive validation.")
         print(f"  • Matched / Proxy Pairs:     {len(valid)} ({', '.join(r['pdb_id'] for r in valid)})")
-        print(f"  • Pearson Correlation (r):   {r_val:.3f} (p = {p_val:.4f})")
-        print(f"  • Spearman Rank Order (ρ):   {rho_val:.3f}")
-        print(f"  • Root Mean Square Error:    {rmse:.2f} kcal/mol")
-        print(f"  • Mean Absolute Error:       {mae:.2f} kcal/mol")
+        print(f"  • Physical Force-Field:      MAE = {mae:.2f} kcal/mol, RMSE = {rmse:.2f} kcal/mol, r = {r_val:.3f} (p = {p_val:.4f}), ρ = {rho_val:.3f}")
+
+        if any(r["ml_delta_g"] is not None for r in valid):
+            ml_arr = np.array([r["ml_delta_g"] for r in valid])
+            ml_mae = float(np.mean(np.abs(ml_arr - exp_arr)))
+            ml_rmse = float(np.sqrt(np.mean((ml_arr - exp_arr) ** 2)))
+            print(f"  • 35D Trained ML Ensemble:   MAE = {ml_mae:.2f} kcal/mol, RMSE = {ml_rmse:.2f} kcal/mol")
     print("="*115)
     print(f"\n[OK] Validation results saved to: {out_csv}\n")
     return df
