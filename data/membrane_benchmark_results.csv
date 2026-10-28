@@ -1,61 +1,61 @@
 id,name,sequence,length,label,group,net_charge_z,charge_density,dg_interfacial,mu_h_alpha,mu_h_beta,mpi_score,hemolysis_risk,therapeutic_index,esm_prob,composite_score,verdict,experimental_mic
-AMP01,Aurein_1.2,GLFDIIKKIAESF,13,1,DBAASP_AMP,-0.01,-0.0,0.138,0.416,0.028,29.1,0.44,0.66,0.7949,0.543,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (2.7 µM)
-AMP02,Temporin_A,FLPLIGRVLSGIL,13,1,DBAASP_AMP,0.99,0.077,-0.193,0.357,0.151,35.9,0.778,0.46,0.7247,0.5418,Tier 4: Inactive / Poor Membrane Affinity,2.5 µg/ml (1.8 µM)
-AMP03,Indolicidin,ILPWKWPWWPWRR,13,1,DBAASP_AMP,2.99,0.23,-0.474,0.19,0.167,43.6,0.662,0.66,0.6418,0.5389,Tier 3: Weak / Marginal Permeabilization,8.0 µg/ml (4.2 µM)
-AMP04,Magainin_2,GIGKFLHSAKKFGKAFVGEIMNS,23,1,DBAASP_AMP,3.03,0.132,0.108,0.286,0.035,30.6,0.187,1.63,0.6615,0.4838,Tier 4: Inactive / Poor Membrane Affinity,3.1 µg/ml (1.3 µM)
-AMP05,Pexiganan_MSI78,GIGKFLKKAKKFGKAFVKILKK,22,1,DBAASP_AMP,8.99,0.409,0.192,0.449,0.049,64.1,0.165,3.88,0.9104,0.7757,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),2.0 µg/ml (0.8 µM)
-AMP06,Cecropin_A,KWKLFKKIEKVGQNIRDGIIKAGPAVAVVGQATQIAK,37,1,DBAASP_AMP,5.99,0.162,0.265,0.172,0.133,25.0,0.198,1.27,0.7041,0.477,Tier 4: Inactive / Poor Membrane Affinity,1.5 µg/ml (0.4 µM)
-AMP07,Melittin,GIGAVLKVLTTGLPALISWIKRKRQQ,26,1,DBAASP_AMP,4.99,0.192,0.081,0.224,0.046,31.0,0.253,1.23,0.8054,0.5577,Tier 4: Inactive / Poor Membrane Affinity,1.0 µg/ml (0.3 µM)
-AMP08,Pleurocidin,GWGSFFKKAAHVGKHVGKAALTHYL,25,1,DBAASP_AMP,4.1,0.164,-0.023,0.229,0.061,29.7,0.157,1.9,0.8329,0.5649,Tier 4: Inactive / Poor Membrane Affinity,6.2 µg/ml (2.3 µM)
-AMP09,LL-37,LLGDFFRKSKEKIGKEFKRIVQRIKDFLRNLVPRTES,37,1,DBAASP_AMP,5.99,0.162,0.347,0.359,0.135,38.1,0.226,1.69,0.7468,0.5639,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (0.9 µM)
-AMP10,Buforin_II,TRSSRAGLQFPVGRVHRLLRK,21,1,DBAASP_AMP,6.03,0.287,0.198,0.3,0.187,44.0,0.133,3.32,0.439,0.4395,Tier 3: Weak / Marginal Permeabilization,3.0 µg/ml (1.2 µM)
-AMP11,Subpath_AMP,KLLKWLKKLLKWLK,14,1,DBAASP_AMP,5.99,0.428,-0.08,0.472,0.009,69.3,0.412,1.68,0.9019,0.7974,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),2.0 µg/ml (1.1 µM)
-AMP12,Dermaseptin_S1,ALWKTMLKKLGTMALHAGKAALGAAADTISQGTQ,34,1,DBAASP_AMP,3.03,0.089,0.094,0.184,0.015,20.0,0.119,1.69,0.7064,0.4532,Tier 4: Inactive / Poor Membrane Affinity,5.0 µg/ml (1.5 µM)
-AMP13,Bactenecin_Bac1,RLCRIVVIRVCR,12,1,DBAASP_AMP,3.78,0.315,0.149,0.392,0.016,52.7,0.356,1.48,0.471,0.499,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),4.0 µg/ml (2.7 µM)
-AMP14,Protegrin_1,RGGRLCYCRRRFCVCVGR,18,1,DBAASP_AMP,5.57,0.31,0.08,0.23,0.215,40.9,0.09,4.55,0.485,0.447,Tier 3: Weak / Marginal Permeabilization,1.5 µg/ml (0.7 µM)
-AMP15,Lactoferricin_B,FKCRRWQWRMKKLGAPSITCVRRAF,25,1,DBAASP_AMP,7.78,0.311,0.048,0.265,0.193,43.5,0.124,3.52,0.3733,0.4042,Tier 3: Weak / Marginal Permeabilization,6.0 µg/ml (1.9 µM)
-AMP16,Defensin_hBD1,DHYNCVSSGGQCLYSACPIFTKIQGTCYRGKAKCCK,36,1,DBAASP_AMP,3.39,0.094,0.076,0.191,0.185,20.9,0.081,2.59,0.6288,0.4189,Tier 4: Inactive / Poor Membrane Affinity,8.0 µg/ml (2.0 µM)
-AMP17,Plant_Defensin_RsAFP2,QKLCERPSGTWSGVCGNNNACKNQCINLEGARHGSCNYVFPAHKCICYFPC,51,1,DBAASP_AMP,2.23,0.044,0.109,0.054,0.021,7.3,0.109,0.67,0.5913,0.3322,Tier 4: Inactive / Poor Membrane Affinity,2.5 µg/ml (0.4 µM)
-AMP18,Oncocin,VDKPPYLPRPRPPRRIYNR,19,1,DBAASP_AMP,4.99,0.263,0.353,0.146,0.066,31.2,0.067,4.65,0.5646,0.4383,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (1.6 µM)
-AMP19,Drosocin,GKPRPYSPRPTSHPRPIRV,19,1,DBAASP_AMP,5.03,0.265,0.333,0.139,0.345,45.3,0.049,9.07,0.4669,0.4599,Tier 3: Weak / Marginal Permeabilization,6.0 µg/ml (2.7 µM)
-AMP20,PR-39,RRRPRPPYLPRPRPPPFFPPRLPPRIPPGFPPRFPPRFP,39,1,DBAASP_AMP,9.99,0.256,0.222,0.044,0.079,26.0,0.089,2.92,0.6526,0.4563,Tier 4: Inactive / Poor Membrane Affinity,2.0 µg/ml (0.4 µM)
-AMP21,Circulin_A,GIPCGESCVWIPCISSAIGCSCKSKVCYRNGIP,33,1,DBAASP_AMP,1.36,0.041,0.055,0.045,0.019,6.4,0.156,0.41,0.3642,0.2141,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (1.1 µM)
-AMP22,Kalata_B1,GLPVCGETCVGGTCNTPGCTCSWPVCTRN,29,1,DBAASP_AMP,-0.64,-0.022,0.078,0.052,0.045,3.6,0.119,0.42,0.4901,0.2701,Tier 4: Inactive / Poor Membrane Affinity,3.5 µg/ml (1.2 µM)
-AMP23,Apidaecin_IA,GNNRPVYIPQPRPPHPRL,18,1,DBAASP_AMP,3.03,0.168,0.277,0.036,0.118,21.7,0.083,2.61,0.3806,0.2988,Tier 4: Inactive / Poor Membrane Affinity,2.0 µg/ml (0.9 µM)
-AMP24,Ascaphin_1,GFKDLLKGAAKALVKTVLF,19,1,DBAASP_AMP,2.99,0.157,0.079,0.26,0.077,30.8,0.312,0.99,0.862,0.585,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (2.0 µM)
-AMP25,Brevinin_1E,FLPAIVGAAAKFLPQIFCKISPQC,24,1,DBAASP_AMP,1.78,0.074,-0.022,0.202,0.026,20.6,0.29,0.71,0.2968,0.2514,Tier 4: Inactive / Poor Membrane Affinity,3.0 µg/ml (1.2 µM)
-AMP26,Maculatin_1.1,GLFGVLAKVAAHVVPAIAEHF,21,1,DBAASP_AMP,0.07,0.003,0.06,0.22,0.089,15.7,0.389,0.4,0.7033,0.4302,Tier 4: Inactive / Poor Membrane Affinity,5.0 µg/ml (2.3 µM)
-AMP27,Caerin_1.1,GLLSVLGSVAKHVLPHVVPVIAEHL,25,1,DBAASP_AMP,0.11,0.004,0.094,0.177,0.037,12.7,0.467,0.27,0.7862,0.4566,Tier 4: Inactive / Poor Membrane Affinity,2.5 µg/ml (1.0 µM)
-AMP28,Arenicin_1,RWCVYAYVRVRGVLVRYRRCW,21,1,DBAASP_AMP,5.78,0.275,-0.103,0.25,0.217,42.1,0.221,1.9,0.4738,0.4474,Tier 3: Weak / Marginal Permeabilization,1.5 µg/ml (0.5 µM)
-AMP29,Thanatin,GSKKPVPIIYCNRRTGKCQRM,21,1,DBAASP_AMP,5.78,0.275,0.257,0.148,0.034,32.4,0.06,5.38,0.5342,0.4291,Tier 4: Inactive / Poor Membrane Affinity,2.0 µg/ml (0.8 µM)
-AMP30,Tachyplesin_1,KWCFRVCYRGICYRRCR,17,1,DBAASP_AMP,5.57,0.328,-0.059,0.127,0.221,43.2,0.094,4.6,0.5728,0.5024,Tier 3: Weak / Marginal Permeabilization,1.0 µg/ml (0.4 µM)
-DEC01,Decoy_Aurein_1.2,IDFKLFSIAIKGE,13,0,Scrambled_Decoy,-0.01,-0.0,0.138,0.122,0.432,30.2,0.44,0.69,0.298,0.3,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC02,Decoy_Temporin_A,LGIPSLVFLIRSG,13,0,Scrambled_Decoy,0.99,0.077,-0.14,0.194,0.218,24.9,0.629,0.4,0.3038,0.2764,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC03,Decoy_Indolicidin,PPWWWIWLKRWRR,13,0,Scrambled_Decoy,3.99,0.307,-0.446,0.303,0.09,56.9,0.571,1.0,0.5465,0.5577,Tier 3: Weak / Marginal Permeabilization,Inactive / Scrambled
-DEC04,Decoy_Magainin_2,GVKGKHFSEGFINLKSAMAKFAI,23,0,Scrambled_Decoy,3.03,0.132,0.115,0.14,0.099,20.3,0.187,1.09,0.2797,0.2414,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC05,Decoy_Pexiganan_MSI78,FKAKLKGKILKKGKKAFVIFGK,22,0,Scrambled_Decoy,8.99,0.409,0.192,0.208,0.22,48.1,0.165,2.91,0.5309,0.506,Tier 3: Weak / Marginal Permeabilization,Inactive / Scrambled
-DEC06,Decoy_Cecropin_A,KGIEVAPGKKQKIQGKAIVANAVTQLFIRDVAAKIGW,37,0,Scrambled_Decoy,4.99,0.135,0.243,0.089,0.136,20.3,0.206,0.99,0.3661,0.2845,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC07,Decoy_Melittin,LKTGLIQGKKLVIVRPQSAIWARLTA,26,0,Scrambled_Decoy,4.99,0.192,0.087,0.01,0.079,20.9,0.253,0.82,0.2756,0.2423,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC08,Decoy_Pleurocidin,GKVKALAAHTHGSKWFFYVHGKLGS,25,0,Scrambled_Decoy,4.1,0.164,-0.024,0.087,0.214,28.7,0.157,1.83,0.3181,0.3025,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC09,Decoy_LL-37,DFIRRLKLGNEFVSEKFKDIRPRKLGQNLKRTFEDSRV,37,0,Scrambled_Decoy,4.99,0.131,0.384,0.097,0.163,21.9,0.198,1.11,0.3231,0.2711,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC10,Decoy_Buforin_II,LLPHTLRGRVRFSVARQGKAG,21,0,Scrambled_Decoy,5.03,0.24,0.162,0.07,0.254,37.0,0.143,2.58,0.366,0.368,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC11,Decoy_Subpath_AMP,LKLKWLKLKKLWKW,14,0,Scrambled_Decoy,5.99,0.428,-0.172,0.196,0.296,59.3,0.412,1.44,0.471,0.532,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),Inactive / Scrambled
-DEC12,Decoy_Dermaseptin_S1,STALGTMLQGAKKLQGMATAIKGATKLWAATDSA,34,0,Scrambled_Decoy,2.99,0.088,0.113,0.099,0.092,14.0,0.101,1.38,0.4724,0.3062,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC13,Decoy_Bactenecin_Bac1,VRILRCVCIRVR,12,0,Scrambled_Decoy,3.78,0.315,0.149,0.377,0.246,51.6,0.356,1.45,0.4494,0.4827,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),Inactive / Scrambled
-DEC14,Decoy_Protegrin_1,RYCLCCRRRRVFFGVCGG,18,0,Scrambled_Decoy,4.57,0.254,-0.028,0.027,0.198,34.9,0.134,2.6,0.3944,0.3717,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC15,Decoy_Lactoferricin_B,RKCFCKKGMLPAWVTWRASRFCIQR,25,0,Scrambled_Decoy,6.68,0.267,0.006,0.126,0.124,30.2,0.133,2.27,0.28,0.291,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC16,Decoy_Defensin_hBD1,CYNSSGCTIYVKAGVKTACFGGKQHRLQSDYIKCCC,36,0,Scrambled_Decoy,3.39,0.094,0.066,0.122,0.165,19.1,0.094,2.02,0.4045,0.2978,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC17,Decoy_Plant_Defensin_RsAFP2,GFVNCCCNVRYACRKTCPCEGSILHYCFQGPNKNAGWSQAFCPKYVHICT,51,0,Scrambled_Decoy,3.12,0.062,0.021,0.14,0.047,14.8,0.12,1.23,0.3701,0.2591,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC18,Decoy_Oncocin,PPRYRRIPVYKRLPNPDPR,19,0,Scrambled_Decoy,4.99,0.263,0.353,0.131,0.306,42.4,0.067,6.31,0.5111,0.4676,Tier 3: Weak / Marginal Permeabilization,Inactive / Scrambled
-DEC19,Decoy_Drosocin,PYPRSRIKHGIPTPPVPRR,19,0,Scrambled_Decoy,5.03,0.265,0.31,0.133,0.219,36.5,0.067,5.45,0.4084,0.3867,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC20,Decoy_PR-39,PRRRPFPFPFPPPRLIPRPRGPRPPPFPFPFPPPRLIPR,39,0,Scrambled_Decoy,8.99,0.231,0.188,0.142,0.096,28.4,0.124,2.29,0.647,0.4655,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC21,Decoy_Circulin_A,CISPCGSVKISIGWSRNCPCYAVICCPGIPCK,33,0,Scrambled_Decoy,2.26,0.07,-0.005,0.024,0.12,14.2,0.155,0.91,0.3861,0.2641,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC22,Decoy_Kalata_B1,TTCGCGCTNSPCGVRVWNTCPCTLPATRN,29,0,Scrambled_Decoy,1.36,0.047,0.058,0.077,0.04,9.2,0.087,1.05,0.4548,0.2734,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC23,Decoy_Apidaecin_IA,PRPVHPIRNPGRPYNPQL,18,0,Scrambled_Decoy,3.03,0.168,0.277,0.305,0.162,34.8,0.083,4.18,0.4872,0.4176,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC24,Decoy_Ascaphin_1,KLVLAKFLDAKTKAGGGLI,19,0,Scrambled_Decoy,2.99,0.157,0.119,0.137,0.146,22.8,0.246,0.93,0.295,0.2615,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC25,Decoy_Brevinin_1E,QPGILICAKFPKAICAPLIFVSLT,24,0,Scrambled_Decoy,1.78,0.074,-0.037,0.107,0.02,14.4,0.376,0.38,0.1757,0.1598,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC26,Decoy_Maculatin_1.1,AGFHAPAVVEVKAGIALVILH,21,0,Scrambled_Decoy,0.07,0.003,0.099,0.035,0.092,6.7,0.389,0.17,0.2565,0.1618,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC27,Decoy_Caerin_1.1,AVGVVLPGLSIPVAHHKVSLLELAH,25,0,Scrambled_Decoy,0.11,0.004,0.098,0.061,0.111,8.1,0.405,0.2,0.2453,0.1631,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC28,Decoy_Arenicin_1,VRRVRWVCVCGYYRRAVLRRW,21,0,Scrambled_Decoy,6.78,0.323,-0.02,0.125,0.096,35.1,0.206,1.7,0.4183,0.3846,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC29,Decoy_Thanatin,RPIQKTQCKGNIMRSCYPTKV,21,0,Scrambled_Decoy,4.78,0.228,0.252,0.112,0.133,27.5,0.065,4.21,0.2958,0.2854,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
-DEC30,Decoy_Tachyplesin_1,CRCYRRKGYWVIICRTR,17,0,Scrambled_Decoy,5.67,0.334,0.011,0.16,0.116,37.9,0.093,4.09,0.4017,0.3903,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+AMP01,Aurein_1.2,GLFDIIKKIAESF,13,1,DBAASP_AMP,-0.01,-0.0,0.138,0.416,0.028,29.1,0.44,0.66,0.9338,0.6124,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (2.7 µM)
+AMP02,Temporin_A,FLPLIGRVLSGIL,13,1,DBAASP_AMP,0.99,0.077,-0.193,0.357,0.151,35.9,0.778,0.46,0.9191,0.6391,Tier 4: Inactive / Poor Membrane Affinity,2.5 µg/ml (1.8 µM)
+AMP03,Indolicidin,ILPWKWPWWPWRR,13,1,DBAASP_AMP,2.99,0.23,-0.474,0.19,0.167,43.6,0.662,0.66,0.6902,0.5631,Tier 3: Weak / Marginal Permeabilization,8.0 µg/ml (4.2 µM)
+AMP04,Magainin_2,GIGKFLHSAKKFGKAFVGEIMNS,23,1,DBAASP_AMP,3.03,0.132,0.108,0.286,0.035,30.6,0.187,1.63,0.8567,0.5814,Tier 4: Inactive / Poor Membrane Affinity,3.1 µg/ml (1.3 µM)
+AMP05,Pexiganan_MSI78,GIGKFLKKAKKFGKAFVKILKK,22,1,DBAASP_AMP,8.99,0.409,0.192,0.449,0.049,64.1,0.165,3.88,0.9925,0.8168,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),2.0 µg/ml (0.8 µM)
+AMP06,Cecropin_A,KWKLFKKIEKVGQNIRDGIIKAGPAVAVVGQATQIAK,37,1,DBAASP_AMP,5.99,0.162,0.265,0.172,0.133,25.0,0.198,1.27,0.8929,0.5715,Tier 4: Inactive / Poor Membrane Affinity,1.5 µg/ml (0.4 µM)
+AMP07,Melittin,GIGAVLKVLTTGLPALISWIKRKRQQ,26,1,DBAASP_AMP,4.99,0.192,0.081,0.224,0.046,31.0,0.253,1.23,0.9807,0.6453,Tier 4: Inactive / Poor Membrane Affinity,1.0 µg/ml (0.3 µM)
+AMP08,Pleurocidin,GWGSFFKKAAHVGKHVGKAALTHYL,25,1,DBAASP_AMP,4.1,0.164,-0.023,0.229,0.061,29.7,0.157,1.9,0.9857,0.6413,Tier 4: Inactive / Poor Membrane Affinity,6.2 µg/ml (2.3 µM)
+AMP09,LL-37,LLGDFFRKSKEKIGKEFKRIVQRIKDFLRNLVPRTES,37,1,DBAASP_AMP,5.99,0.162,0.347,0.359,0.135,38.1,0.226,1.69,0.8508,0.6159,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (0.9 µM)
+AMP10,Buforin_II,TRSSRAGLQFPVGRVHRLLRK,21,1,DBAASP_AMP,6.03,0.287,0.198,0.3,0.187,44.0,0.133,3.32,0.3419,0.391,Tier 3: Weak / Marginal Permeabilization,3.0 µg/ml (1.2 µM)
+AMP11,Subpath_AMP,KLLKWLKKLLKWLK,14,1,DBAASP_AMP,5.99,0.428,-0.08,0.472,0.009,69.3,0.412,1.68,0.9901,0.8416,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),2.0 µg/ml (1.1 µM)
+AMP12,Dermaseptin_S1,ALWKTMLKKLGTMALHAGKAALGAAADTISQGTQ,34,1,DBAASP_AMP,3.03,0.089,0.094,0.184,0.015,20.0,0.119,1.69,0.9422,0.5711,Tier 4: Inactive / Poor Membrane Affinity,5.0 µg/ml (1.5 µM)
+AMP13,Bactenecin_Bac1,RLCRIVVIRVCR,12,1,DBAASP_AMP,3.78,0.315,0.149,0.392,0.016,52.7,0.356,1.48,0.5447,0.5358,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),4.0 µg/ml (2.7 µM)
+AMP14,Protegrin_1,RGGRLCYCRRRFCVCVGR,18,1,DBAASP_AMP,5.57,0.31,0.08,0.23,0.215,40.9,0.09,4.55,0.4054,0.4072,Tier 3: Weak / Marginal Permeabilization,1.5 µg/ml (0.7 µM)
+AMP15,Lactoferricin_B,FKCRRWQWRMKKLGAPSITCVRRAF,25,1,DBAASP_AMP,7.78,0.311,0.048,0.265,0.193,43.5,0.124,3.52,0.3061,0.3705,Tier 3: Weak / Marginal Permeabilization,6.0 µg/ml (1.9 µM)
+AMP16,Defensin_hBD1,DHYNCVSSGGQCLYSACPIFTKIQGTCYRGKAKCCK,36,1,DBAASP_AMP,3.39,0.094,0.076,0.191,0.185,20.9,0.081,2.59,0.9238,0.5664,Tier 4: Inactive / Poor Membrane Affinity,8.0 µg/ml (2.0 µM)
+AMP17,Plant_Defensin_RsAFP2,QKLCERPSGTWSGVCGNNNACKNQCINLEGARHGSCNYVFPAHKCICYFPC,51,1,DBAASP_AMP,2.23,0.044,0.109,0.054,0.021,7.3,0.109,0.67,0.899,0.486,Tier 4: Inactive / Poor Membrane Affinity,2.5 µg/ml (0.4 µM)
+AMP18,Oncocin,VDKPPYLPRPRPPRRIYNR,19,1,DBAASP_AMP,4.99,0.263,0.353,0.146,0.066,31.2,0.067,4.65,0.6773,0.4947,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (1.6 µM)
+AMP19,Drosocin,GKPRPYSPRPTSHPRPIRV,19,1,DBAASP_AMP,5.03,0.265,0.333,0.139,0.345,45.3,0.049,9.07,0.7578,0.6054,Tier 3: Weak / Marginal Permeabilization,6.0 µg/ml (2.7 µM)
+AMP20,PR-39,RRRPRPPYLPRPRPPPFFPPRLPPRIPPGFPPRFPPRFP,39,1,DBAASP_AMP,9.99,0.256,0.222,0.044,0.079,26.0,0.089,2.92,0.6628,0.4614,Tier 4: Inactive / Poor Membrane Affinity,2.0 µg/ml (0.4 µM)
+AMP21,Circulin_A,GIPCGESCVWIPCISSAIGCSCKSKVCYRNGIP,33,1,DBAASP_AMP,1.36,0.041,0.055,0.045,0.019,6.4,0.156,0.41,0.4698,0.2669,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (1.1 µM)
+AMP22,Kalata_B1,GLPVCGETCVGGTCNTPGCTCSWPVCTRN,29,1,DBAASP_AMP,-0.64,-0.022,0.078,0.052,0.045,3.6,0.119,0.42,0.8669,0.4585,Tier 4: Inactive / Poor Membrane Affinity,3.5 µg/ml (1.2 µM)
+AMP23,Apidaecin_IA,GNNRPVYIPQPRPPHPRL,18,1,DBAASP_AMP,3.03,0.168,0.277,0.036,0.118,21.7,0.083,2.61,0.594,0.4055,Tier 4: Inactive / Poor Membrane Affinity,2.0 µg/ml (0.9 µM)
+AMP24,Ascaphin_1,GFKDLLKGAAKALVKTVLF,19,1,DBAASP_AMP,2.99,0.157,0.079,0.26,0.077,30.8,0.312,0.99,0.9802,0.6441,Tier 4: Inactive / Poor Membrane Affinity,4.0 µg/ml (2.0 µM)
+AMP25,Brevinin_1E,FLPAIVGAAAKFLPQIFCKISPQC,24,1,DBAASP_AMP,1.78,0.074,-0.022,0.202,0.026,20.6,0.29,0.71,0.3292,0.2676,Tier 4: Inactive / Poor Membrane Affinity,3.0 µg/ml (1.2 µM)
+AMP26,Maculatin_1.1,GLFGVLAKVAAHVVPAIAEHF,21,1,DBAASP_AMP,0.07,0.003,0.06,0.22,0.089,15.7,0.389,0.4,0.9462,0.5516,Tier 4: Inactive / Poor Membrane Affinity,5.0 µg/ml (2.3 µM)
+AMP27,Caerin_1.1,GLLSVLGSVAKHVLPHVVPVIAEHL,25,1,DBAASP_AMP,0.11,0.004,0.094,0.177,0.037,12.7,0.467,0.27,0.9851,0.556,Tier 4: Inactive / Poor Membrane Affinity,2.5 µg/ml (1.0 µM)
+AMP28,Arenicin_1,RWCVYAYVRVRGVLVRYRRCW,21,1,DBAASP_AMP,5.78,0.275,-0.103,0.25,0.217,42.1,0.221,1.9,0.6374,0.5292,Tier 3: Weak / Marginal Permeabilization,1.5 µg/ml (0.5 µM)
+AMP29,Thanatin,GSKKPVPIIYCNRRTGKCQRM,21,1,DBAASP_AMP,5.78,0.275,0.257,0.148,0.034,32.4,0.06,5.38,0.5476,0.4358,Tier 4: Inactive / Poor Membrane Affinity,2.0 µg/ml (0.8 µM)
+AMP30,Tachyplesin_1,KWCFRVCYRGICYRRCR,17,1,DBAASP_AMP,5.57,0.328,-0.059,0.127,0.221,43.2,0.094,4.6,0.5433,0.4877,Tier 3: Weak / Marginal Permeabilization,1.0 µg/ml (0.4 µM)
+DEC01,Decoy_Aurein_1.2,IDFKLFSIAIKGE,13,0,Scrambled_Decoy,-0.01,-0.0,0.138,0.122,0.432,30.2,0.44,0.69,0.1154,0.2087,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC02,Decoy_Temporin_A,LGIPSLVFLIRSG,13,0,Scrambled_Decoy,0.99,0.077,-0.14,0.194,0.218,24.9,0.629,0.4,0.192,0.2205,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC03,Decoy_Indolicidin,PPWWWIWLKRWRR,13,0,Scrambled_Decoy,3.99,0.307,-0.446,0.303,0.09,56.9,0.571,1.0,0.593,0.581,Tier 3: Weak / Marginal Permeabilization,Inactive / Scrambled
+DEC04,Decoy_Magainin_2,GVKGKHFSEGFINLKSAMAKFAI,23,0,Scrambled_Decoy,3.03,0.132,0.115,0.14,0.099,20.3,0.187,1.09,0.1228,0.1629,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC05,Decoy_Pexiganan_MSI78,FKAKLKGKILKKGKKAFVIFGK,22,0,Scrambled_Decoy,8.99,0.409,0.192,0.208,0.22,48.1,0.165,2.91,0.4799,0.4804,Tier 3: Weak / Marginal Permeabilization,Inactive / Scrambled
+DEC06,Decoy_Cecropin_A,KGIEVAPGKKQKIQGKAIVANAVTQLFIRDVAAKIGW,37,0,Scrambled_Decoy,4.99,0.135,0.243,0.089,0.136,20.3,0.206,0.99,0.144,0.1735,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC07,Decoy_Melittin,LKTGLIQGKKLVIVRPQSAIWARLTA,26,0,Scrambled_Decoy,4.99,0.192,0.087,0.01,0.079,20.9,0.253,0.82,0.1303,0.1696,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC08,Decoy_Pleurocidin,GKVKALAAHTHGSKWFFYVHGKLGS,25,0,Scrambled_Decoy,4.1,0.164,-0.024,0.087,0.214,28.7,0.157,1.83,0.3298,0.3084,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC09,Decoy_LL-37,DFIRRLKLGNEFVSEKFKDIRPRKLGQNLKRTFEDSRV,37,0,Scrambled_Decoy,4.99,0.131,0.384,0.097,0.163,21.9,0.198,1.11,0.0663,0.1426,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC10,Decoy_Buforin_II,LLPHTLRGRVRFSVARQGKAG,21,0,Scrambled_Decoy,5.03,0.24,0.162,0.07,0.254,37.0,0.143,2.58,0.2882,0.3291,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC11,Decoy_Subpath_AMP,LKLKWLKLKKLWKW,14,0,Scrambled_Decoy,5.99,0.428,-0.172,0.196,0.296,59.3,0.412,1.44,0.3204,0.4567,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),Inactive / Scrambled
+DEC12,Decoy_Dermaseptin_S1,STALGTMLQGAKKLQGMATAIKGATKLWAATDSA,34,0,Scrambled_Decoy,2.99,0.088,0.113,0.099,0.092,14.0,0.101,1.38,0.4971,0.3185,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC13,Decoy_Bactenecin_Bac1,VRILRCVCIRVR,12,0,Scrambled_Decoy,3.78,0.315,0.149,0.377,0.246,51.6,0.356,1.45,0.8319,0.674,Tier 2: Moderate AMP Activity (Needs Hydrophobic/Charge Tuning),Inactive / Scrambled
+DEC14,Decoy_Protegrin_1,RYCLCCRRRRVFFGVCGG,18,0,Scrambled_Decoy,4.57,0.254,-0.028,0.027,0.198,34.9,0.134,2.6,0.2348,0.2919,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC15,Decoy_Lactoferricin_B,RKCFCKKGMLPAWVTWRASRFCIQR,25,0,Scrambled_Decoy,6.68,0.267,0.006,0.126,0.124,30.2,0.133,2.27,0.2145,0.2582,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC16,Decoy_Defensin_hBD1,CYNSSGCTIYVKAGVKTACFGGKQHRLQSDYIKCCC,36,0,Scrambled_Decoy,3.39,0.094,0.066,0.122,0.165,19.1,0.094,2.02,0.5172,0.3541,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC17,Decoy_Plant_Defensin_RsAFP2,GFVNCCCNVRYACRKTCPCEGSILHYCFQGPNKNAGWSQAFCPKYVHICT,51,0,Scrambled_Decoy,3.12,0.062,0.021,0.14,0.047,14.8,0.12,1.23,0.5673,0.3577,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC18,Decoy_Oncocin,PPRYRRIPVYKRLPNPDPR,19,0,Scrambled_Decoy,4.99,0.263,0.353,0.131,0.306,42.4,0.067,6.31,0.6343,0.5292,Tier 3: Weak / Marginal Permeabilization,Inactive / Scrambled
+DEC19,Decoy_Drosocin,PYPRSRIKHGIPTPPVPRR,19,0,Scrambled_Decoy,5.03,0.265,0.31,0.133,0.219,36.5,0.067,5.45,0.6135,0.4893,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC20,Decoy_PR-39,PRRRPFPFPFPPPRLIPRPRGPRPPPFPFPFPPPRLIPR,39,0,Scrambled_Decoy,8.99,0.231,0.188,0.142,0.096,28.4,0.124,2.29,0.7464,0.5152,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC21,Decoy_Circulin_A,CISPCGSVKISIGWSRNCPCYAVICCPGIPCK,33,0,Scrambled_Decoy,2.26,0.07,-0.005,0.024,0.12,14.2,0.155,0.91,0.6214,0.3817,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC22,Decoy_Kalata_B1,TTCGCGCTNSPCGVRVWNTCPCTLPATRN,29,0,Scrambled_Decoy,1.36,0.047,0.058,0.077,0.04,9.2,0.087,1.05,0.8465,0.4693,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC23,Decoy_Apidaecin_IA,PRPVHPIRNPGRPYNPQL,18,0,Scrambled_Decoy,3.03,0.168,0.277,0.305,0.162,34.8,0.083,4.18,0.7192,0.5336,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC24,Decoy_Ascaphin_1,KLVLAKFLDAKTKAGGGLI,19,0,Scrambled_Decoy,2.99,0.157,0.119,0.137,0.146,22.8,0.246,0.93,0.1779,0.203,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC25,Decoy_Brevinin_1E,QPGILICAKFPKAICAPLIFVSLT,24,0,Scrambled_Decoy,1.78,0.074,-0.037,0.107,0.02,14.4,0.376,0.38,0.144,0.144,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC26,Decoy_Maculatin_1.1,AGFHAPAVVEVKAGIALVILH,21,0,Scrambled_Decoy,0.07,0.003,0.099,0.035,0.092,6.7,0.389,0.17,0.1206,0.0938,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC27,Decoy_Caerin_1.1,AVGVVLPGLSIPVAHHKVSLLELAH,25,0,Scrambled_Decoy,0.11,0.004,0.098,0.061,0.111,8.1,0.405,0.2,0.1566,0.1188,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC28,Decoy_Arenicin_1,VRRVRWVCVCGYYRRAVLRRW,21,0,Scrambled_Decoy,6.78,0.323,-0.02,0.125,0.096,35.1,0.206,1.7,0.4838,0.4174,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC29,Decoy_Thanatin,RPIQKTQCKGNIMRSCYPTKV,21,0,Scrambled_Decoy,4.78,0.228,0.252,0.112,0.133,27.5,0.065,4.21,0.3328,0.3039,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
+DEC30,Decoy_Tachyplesin_1,CRCYRRKGYWVIICRTR,17,0,Scrambled_Decoy,5.67,0.334,0.011,0.16,0.116,37.9,0.093,4.09,0.3577,0.3684,Tier 4: Inactive / Poor Membrane Affinity,Inactive / Scrambled
