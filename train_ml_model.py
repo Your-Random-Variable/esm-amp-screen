@@ -27,7 +27,7 @@ from esm_amp_screen.physics_engine import calculate_haddock_physics_score
 from esm_amp_screen.utils import logger, ensure_dir
 
 
-# Exact 35 physical and structural features (matching MLPeptideScorer._setup_features)
+# Exact 34 physical and structural features (matching MLPeptideScorer._setup_features)
 FEATURE_NAMES = []
 for e1, e2 in ELEMENT_PAIRS:
     FEATURE_NAMES.append(f"pair_{e1}_{e2}_close")
@@ -35,18 +35,16 @@ for e1, e2 in ELEMENT_PAIRS:
 FEATURE_NAMES.extend([
     "e_vdw", "e_elec", "e_desolv", "bsa", "haddock_score", "e_air",
     "salt_bridges", "hbonds", "hydrophobic_contacts", "clashes",
-    "net_charge", "hydrophobic_moment", "boman_index", "length",
-    "vina_affinity"
+    "net_charge", "hydrophobic_moment", "boman_index", "length"
 ])
 
 
 def featurize_complex(complex_pdb: Path, meta_row: dict) -> list:
-    """Extracts 35D feature vector from a single complex PDB (without label leakage)."""
+    """Extracts 34D feature vector from a single complex PDB (without label leakage)."""
     fp = extract_structural_fingerprint(complex_pdb)
     physics = calculate_haddock_physics_score(complex_pdb)
 
     pep_len = float(meta_row.get("length", len(meta_row.get("sequence", "")))) if (meta_row.get("length") or meta_row.get("sequence")) else 12.0
-    dock_aff = float(meta_row["vina_affinity"]) if "vina_affinity" in meta_row else float(meta_row.get("affinity", -8.0))
 
     row = []
     for e1, e2 in ELEMENT_PAIRS:
@@ -67,8 +65,7 @@ def featurize_complex(complex_pdb: Path, meta_row: dict) -> list:
         float(meta_row.get("net_charge", meta_row.get("net_charge_z", 0.0))),
         float(meta_row.get("hydrophobic_moment", meta_row.get("hydrophobic_moment_muH", 0.0))),
         float(meta_row.get("boman_index", 0.0)),
-        pep_len,
-        dock_aff
+        pep_len
     ])
     return row
 

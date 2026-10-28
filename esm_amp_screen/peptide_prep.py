@@ -11,7 +11,10 @@ from typing import Dict, List, Optional, Tuple
 import gemmi
 import numpy as np
 from rdkit import Chem
-import meeko
+try:
+    import meeko
+except ImportError:
+    meeko = None
 
 from esm_amp_screen.utils import logger, ensure_dir
 
@@ -268,6 +271,27 @@ def prepare_peptide_pdbqt(
             temp_annotated_pdb.unlink(missing_ok=True)
 
 
+def prepare_native_peptides(
+    pdb_files: List[Path],
+    out_dir: Path
+) -> Dict[str, Path]:
+    """
+    Prepares native 3D peptide PDB structures for geometric docking.
+    Zero external dependencies, no PDBQT, no Meeko.
+    """
+    out_dir = Path(out_dir)
+    ensure_dir(out_dir)
+    prepared = {}
+    for pdb_path in pdb_files:
+        pep_id = pdb_path.stem
+        out_path = out_dir / f"{pep_id}.pdb"
+        if pdb_path.resolve() != out_path.resolve():
+            out_path.write_text(pdb_path.read_text(encoding="utf-8"), encoding="utf-8")
+        prepared[pep_id] = out_path
+    logger.info(f"Prepared {len(prepared)} native 3D peptide PDB ligands in {out_dir.name}.")
+    return prepared
+
+
 def batch_prepare_peptides(
     pdb_files: List[Path],
     out_dir: Path,
@@ -276,30 +300,23 @@ def batch_prepare_peptides(
     lock_disulfides: bool = True
 ) -> Dict[str, Tuple[Path, int]]:
     """
-    Batch converts a list of peptide PDB files into PDBQTs.
-    Returns {pep_id: (pdbqt_path, num_torsions)}.
+    Prepares peptide PDB structures for docking.
+    Returns {pep_id: (pdb_path, num_torsions)}.
     """
     out_dir = Path(out_dir)
     ensure_dir(out_dir)
     prepared = {}
 
-    desc = "rigid ESM-folded structures" if flexibility == "rigid" else "backbone-frozen, sidechain-flexible"
-    macro_note = " (with disulfide/macrocycle locking)" if lock_disulfides else ""
-    logger.info(f"Preparing {len(pdb_files)} peptide ligands ({desc}{macro_note})...")
+    logger.info(f"Preparing {len(pdb_files)} native 3D peptide ligands for geometric screening...")
     for pdb_path in pdb_files:
         pep_id = pdb_path.stem
-        out_path = out_dir / f"{pep_id}.pdbqt"
+        out_path = out_dir / f"{pep_id}.pdb"
         try:
-            path, torsions = prepare_peptide_pdbqt(
-                pdb_path,
-                out_path,
-                flexibility=flexibility,
-                obabel_bin=obabel_bin,
-                lock_disulfides=lock_disulfides
-            )
-            prepared[pep_id] = (path, torsions)
+            if pdb_path.resolve() != out_path.resolve():
+                out_path.write_text(pdb_path.read_text(encoding="utf-8"), encoding="utf-8")
+            prepared[pep_id] = (out_path, 0)
         except Exception as e:
             logger.error(f"Failed to prepare {pep_id}: {e}")
 
-    logger.info(f"Successfully prepared {len(prepared)}/{len(pdb_files)} peptide PDBQT ligands.")
+    logger.info(f"Successfully prepared {len(prepared)}/{len(pdb_files)} peptide ligands.")
     return prepared

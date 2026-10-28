@@ -13,8 +13,8 @@ import gemmi
 from esm_amp_screen import __version__
 from esm_amp_screen.utils import logger, read_fasta, ensure_dir, which_tool, AA_3TO1
 from esm_amp_screen.esm_folder import batch_fold_peptides, fetch_rcsb_pdb, predict_secondary_structure_propensity
-from esm_amp_screen.receptor_prep import clean_receptor_pdb, calculate_grid_box, prepare_receptor_pdbqt
-from esm_amp_screen.peptide_prep import batch_prepare_peptides, prepare_peptide_pdbqt, create_docked_pristine_pdb
+from esm_amp_screen.receptor_prep import clean_receptor_pdb, calculate_grid_box
+from esm_amp_screen.peptide_prep import batch_prepare_peptides, prepare_native_peptides, create_docked_pristine_pdb
 from esm_amp_screen.docking_engine import run_parallel_screening
 from esm_amp_screen.amp_analyzer import (
     calculate_net_charge,
@@ -32,9 +32,7 @@ from esm_amp_screen.amp_analyzer import (
 )
 from esm_amp_screen.reporter import (
     export_screening_report,
-    convert_docked_pdbqt_to_pdb,
-    create_cocomplex_pdb,
-    count_docked_modes
+    create_cocomplex_pdb
 )
 from esm_amp_screen.ml_scorer import MLPeptideScorer
 
@@ -45,7 +43,6 @@ def run_pipeline(args: argparse.Namespace) -> None:
     ensure_dir(out_dir)
 
     # 1. External tools verification
-    vina_bin = args.vina_bin or which_tool("vina")
     obabel_bin = args.obabel_bin or which_tool("obabel")
 
     print("\n" + "="*70)
@@ -65,7 +62,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
     else:
         raise FileNotFoundError(f"Receptor file not found and not a valid 4-letter PDB ID: {receptor_arg}")
 
-    # 3. Calculate Grid Box
+    # 3. Calculate Grid Box / Pocket Geometry
     center_coords = tuple(map(float, args.center)) if args.center else None
     size_dims = tuple(map(float, args.size)) if args.size else None
     pocket_res = [r.strip() for r in args.pocket_residues.split(",")] if args.pocket_residues else None
@@ -79,10 +76,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         padding=args.padding
     )
 
-    # 4. Prepare Receptor PDBQT
-    rec_pdbqt = prepare_receptor_pdbqt(rec_pdb_path, out_dir / "receptors_pdbqt", obabel_bin=obabel_bin)
-
-    # 5. Load / Fold AMP Peptides
+    # 4. Load / Fold AMP Peptides
     library_arg = Path(args.library)
     peptides_pdb_dir = out_dir / "peptides_pdb"
     ensure_dir(peptides_pdb_dir)
@@ -126,32 +120,23 @@ def run_pipeline(args: argparse.Namespace) -> None:
     print("      STAGE 1: HIGH-THROUGHPUT VIRTUAL SCREENING (FAST FILTER)")
     print("="*70 + "\n")
 
-    # 6. Convert Peptides to PDBQT with Configured Flexibility
-    ligands_pdbqt_dir = out_dir / "peptides_pdbqt"
-    prepared_ligands = batch_prepare_peptides(
-        peptide_pdbs,
-        ligands_pdbqt_dir,
-        flexibility=args.flexibility,
-        obabel_bin=obabel_bin,
-        lock_disulfides=args.disulfide_lock
-    )
-    ligand_paths = {pep_id: path for pep_id, (path, tors) in prepared_ligands.items()}
+    # 5. Prepare Native 3D Peptide PDBs
+    ligand_paths = prepare_native_peptides(peptide_pdbs, peptides_pdb_dir)
 
-    # 7. Run High-Throughput Parallel Screening
+    # 6. Run High-Throughput Native 3D Geometric Screening
     docking_out_dir = out_dir / "docking_poses"
     dock_results = run_parallel_screening(
         ligands=ligand_paths,
-        receptor_pdbqt=rec_pdbqt,
+        receptor_pdb=rec_pdb_path,
         grid=grid,
         out_dir=docking_out_dir,
         threads=args.threads,
         max_workers=args.max_workers,
         exhaustiveness=args.exhaustiveness,
-        num_modes=args.num_modes,
-        vina_bin=vina_bin
+        num_modes=args.num_modes
     )
 
-    # 8. Biophysical Profiling & Contact Analysis for Stage 1
+    # 7. Biophysical Profiling & Contact Analysis for Stage 1
     logger.info("Computing AMP biophysical metrics and intermolecular contact fingerprints...")
     summary_data = []
 
@@ -161,7 +146,9 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
         seq = sequences.get(pep_id, "")
         affinity = dres["best_affinity"]
-        docked_pdbqt = dres["docked_pdbqt"]
+        top_pose_pdb = dres.get("docked_pdb")
+        if not top_pose_pdb or not Path(top_pose_pdb).exists():
+            top_pose_pdb = docking_out_dir / f"{pep_id}_pose1.pdb"
 
         # Calculate AMP metrics
         z = calculate_net_charge(seq) if seq else 0.0
@@ -171,10 +158,6 @@ def run_pipeline(args: argparse.Namespace) -> None:
         heavy_atoms = count_heavy_atoms(seq) if seq else 1
         le = calculate_ligand_efficiency(affinity, heavy_atoms)
         bepr = calculate_per_residue_energy(affinity, len(seq) if seq else 1)
-
-        # Convert top pose to PDB and extract contacts
-        top_pose_pdb = docking_out_dir / f"{pep_id}_pose1.pdb"
-        convert_docked_pdbqt_to_pdb(docked_pdbqt, top_pose_pdb, obabel_bin=obabel_bin)
 
         contacts = analyze_complex_contacts(rec_pdb_path, top_pose_pdb) if top_pose_pdb.exists() else {
             "salt_bridges": 0, "hbonds": 0, "hydrophobic_contacts": 0, "clashes": 0, "key_contacts": []
@@ -221,7 +204,8 @@ def run_pipeline(args: argparse.Namespace) -> None:
             "hydrophobic_contacts": contacts["hydrophobic_contacts"],
             "clashes": contacts["clashes"],
             "composite_score": composite_score,
-            "docked_pdbqt": docked_pdbqt,
+            "docked_pdb": top_pose_pdb,
+            "complex_pdb": dres.get("complex_pdb"),
             "entropy_penalty": sol_aff["entropy_penalty"],
             "solution_delta_g": sol_aff["solution_delta_g"],
             "solution_kd": sol_aff["solution_kd"],
@@ -272,56 +256,30 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
         top_stage1_hits = summary_data[:refine_n]
         stage1_docking_dir = out_dir / "docking_poses"
-        stage2_ligands_dir = out_dir / "peptides_pdbqt_stage2"
-        ensure_dir(stage2_ligands_dir)
+        stage2_docking_dir = out_dir / "docking_poses_stage2"
+        ensure_dir(stage2_docking_dir)
 
-        # Prepare sidechain-flexible PDBQT ligands centered directly in the Stage 1 pocket
+        # Prepare ligands from Stage 1 docked poses for local interface refinement
         stage2_ligand_paths = {}
         for hit in top_stage1_hits:
             pep_id = hit["pep_id"]
-            stage1_pose_pdb = stage1_docking_dir / f"{pep_id}_pose1.pdb"
-            orig_pdb = out_dir / "peptides_pdb" / f"{pep_id}.pdb"
-            if not orig_pdb.exists() and library_arg.is_dir():
-                cand_orig = library_arg / f"{pep_id}.pdb"
-                if cand_orig.exists():
-                    orig_pdb = cand_orig
-            docked_pristine_pdb = stage2_ligands_dir / f"{pep_id}_docked_pristine.pdb"
+            stage1_pose_pdb = hit.get("docked_pdb")
+            if not stage1_pose_pdb or not Path(stage1_pose_pdb).exists():
+                stage1_pose_pdb = stage1_docking_dir / f"{pep_id}_pose1.pdb"
+            if Path(stage1_pose_pdb).exists():
+                stage2_ligand_paths[pep_id] = Path(stage1_pose_pdb)
 
-            if orig_pdb.exists() and stage1_pose_pdb.exists():
-                input_refine_pdb = create_docked_pristine_pdb(orig_pdb, stage1_pose_pdb, docked_pristine_pdb)
-            elif stage1_pose_pdb.exists():
-                input_refine_pdb = stage1_pose_pdb
-            else:
-                input_refine_pdb = orig_pdb
-
-            out_pdbqt = stage2_ligands_dir / f"{pep_id}.pdbqt"
-            try:
-                path, tors = prepare_peptide_pdbqt(
-                    input_refine_pdb,
-                    out_pdbqt,
-                    flexibility="sidechain",
-                    obabel_bin=obabel_bin,
-                    lock_disulfides=args.disulfide_lock
-                )
-                stage2_ligand_paths[pep_id] = path
-            except Exception as e:
-                logger.error(f"Failed to prepare flexible sidechains for {pep_id}: {e}")
-
-        # Run Stage 2 pocket-guided local induced-fit refinement
-        stage2_docking_dir = out_dir / "docking_poses_stage2"
+        # Run Stage 2 pocket-guided local geometric refinement
         stage2_dock_results = run_parallel_screening(
             ligands=stage2_ligand_paths,
-            receptor_pdbqt=rec_pdbqt,
-            grid=None,
+            receptor_pdb=rec_pdb_path,
+            grid=grid,
             out_dir=stage2_docking_dir,
             threads=args.threads,
             max_workers=args.max_workers,
             exhaustiveness=args.refine_exhaustiveness,
             num_modes=args.num_modes,
-            vina_bin=vina_bin,
-            local_only=True,
-            autobox=True,
-            timeout=900
+            local_only=True
         )
 
         for hit in top_stage1_hits:
@@ -330,9 +288,9 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
             if dres and dres["success"]:
                 ref_affinity = dres["best_affinity"]
-                ref_pdbqt = dres["docked_pdbqt"]
-                ref_pose_pdb = stage2_docking_dir / f"{pep_id}_refined_pose1.pdb"
-                convert_docked_pdbqt_to_pdb(ref_pdbqt, ref_pose_pdb, obabel_bin=obabel_bin)
+                ref_pose_pdb = dres.get("docked_pdb")
+                if not ref_pose_pdb or not Path(ref_pose_pdb).exists():
+                    ref_pose_pdb = stage2_docking_dir / f"{pep_id}_pose1.pdb"
 
                 ref_contacts = analyze_complex_contacts(rec_pdb_path, ref_pose_pdb) if ref_pose_pdb.exists() else {
                     "salt_bridges": hit["salt_bridges"], "hbonds": hit["hbonds"],
@@ -372,7 +330,8 @@ def run_pipeline(args: argparse.Namespace) -> None:
                     "hydrophobic_contacts": ref_contacts["hydrophobic_contacts"],
                     "clashes": ref_contacts["clashes"],
                     "composite_score": ref_comp,
-                    "docked_pdbqt": ref_pdbqt,
+                    "docked_pdb": ref_pose_pdb,
+                    "complex_pdb": dres.get("complex_pdb"),
                     "solution_delta_g": ref_sol_aff["solution_delta_g"],
                     "solution_kd": ref_sol_aff["solution_kd"],
                     "stage": "Stage 2 (Refined)"
@@ -453,49 +412,37 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
         for hit in refined_summary_data[:stage3_n]:
             pep_id = hit["pep_id"]
-            docked_pdbqt = hit.get("docked_pdbqt")
-            orig_pdb = out_dir / "peptides_pdb" / f"{pep_id}.pdb"
-            if not orig_pdb.exists() and library_arg.is_dir():
-                cand_orig = library_arg / f"{pep_id}.pdb"
-                if cand_orig.exists():
-                    orig_pdb = cand_orig
-
             best_ml_res = None
             best_cpx_pdb = None
             best_mode_idx = 1
             best_consensus = -9999.0
 
-            total_avail_modes = count_docked_modes(Path(docked_pdbqt)) if docked_pdbqt else 1
-            modes_to_test = min(rescore_k, max(1, total_avail_modes))
-
-            for mode_idx in range(1, modes_to_test + 1):
-                mode_pose_pdb = complex_dir / f"{pep_id}_mode{mode_idx}.pdb"
-                if docked_pdbqt and Path(docked_pdbqt).exists():
-                    conv_res = convert_docked_pdbqt_to_pdb(
-                        Path(docked_pdbqt),
-                        mode_pose_pdb,
-                        obabel_bin=obabel_bin,
-                        model_idx=mode_idx
-                    )
-                    if conv_res is None or not mode_pose_pdb.exists():
+            # Find available docked modes in stage2 or stage1 directories
+            search_dirs = [out_dir / "docking_poses_stage2", out_dir / "docking_poses"]
+            mode_files = []
+            for d in search_dirs:
+                if d.exists():
+                    m_files = sorted(d.glob(f"{pep_id}_mode*.pdb"))
+                    if m_files:
+                        mode_files = m_files
                         break
 
-                    if orig_pdb.exists():
-                        pristine_mode_pdb = complex_dir / f"{pep_id}_mode{mode_idx}_pristine.pdb"
-                        pose_to_use = create_docked_pristine_pdb(orig_pdb, mode_pose_pdb, pristine_mode_pdb)
-                    else:
-                        pose_to_use = mode_pose_pdb
+            modes_to_test = min(rescore_k, max(1, len(mode_files))) if mode_files else 1
 
-                    mode_cpx = complex_dir / f"complex_{pep_id}_mode{mode_idx}.pdb"
-                    create_cocomplex_pdb(rec_pdb_path, pose_to_use, mode_cpx)
+            for mode_idx in range(1, modes_to_test + 1):
+                mode_pose = None
+                if mode_files and mode_idx <= len(mode_files):
+                    mode_pose = mode_files[mode_idx - 1]
+                elif hit.get("docked_pdb") and Path(hit["docked_pdb"]).exists():
+                    mode_pose = Path(hit["docked_pdb"])
+
+                mode_cpx = complex_dir / f"complex_{pep_id}_mode{mode_idx}.pdb"
+                if mode_pose and mode_pose.exists():
+                    create_cocomplex_pdb(rec_pdb_path, mode_pose, mode_cpx)
+                elif hit.get("complex_pdb") and Path(hit["complex_pdb"]).exists():
+                    mode_cpx = Path(hit["complex_pdb"])
                 else:
-                    mode_cpx = hit.get("complex_pdb")
-                    if not mode_cpx or not Path(mode_cpx).exists():
-                        candidate_cpx = complex_dir / f"complex_{pep_id}.pdb"
-                        if candidate_cpx.exists():
-                            mode_cpx = candidate_cpx
-                        else:
-                            break
+                    break
 
                 try:
                     cpx_to_eval = Path(mode_cpx)
@@ -559,7 +506,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         print("\n" + "="*145)
         print("            STAGE 3: HADDOCK PHYSICS & CONSENSUS LEADERBOARD")
         print("="*145)
-        header = f"{'Rank':<5} {'Peptide ID':<16} {'Mode':<6} {'Vina ΔG':<9} {'HADDOCK':<9} {'BSA (Å²)':<9} {'Cons. ΔG':<9} {'Pred Kd':<9} {'Sol. Kd':<10} {'Toxicity':<14} {'Consensus':<10}"
+        header = f"{'Rank':<5} {'Peptide ID':<16} {'Mode':<6} {'Dock ΔG':<9} {'HADDOCK':<9} {'BSA (Å²)':<9} {'Cons. ΔG':<9} {'Pred Kd':<9} {'Sol. Kd':<10} {'Toxicity':<14} {'Consensus':<10}"
         print(header)
         print("-" * len(header))
         for row in refined_summary_data[:stage3_n]:
@@ -644,20 +591,22 @@ def main():
     p_run.add_argument("--conformation", "-c", choices=["auto", "helix", "sheet", "extended", "ppii", "ensemble"], default="auto",
                        help="Secondary structure prior conformation for AMPs: 'auto' (sequence-based propensity detection, default), 'helix', 'sheet', 'extended', 'ppii', or 'ensemble'")
     p_run.add_argument("--flexibility", choices=["rigid", "sidechain"], default="rigid",
-                       help="Peptide flexibility for Stage 1: 'rigid' (ultra-fast HTVS of ESM 3D fold, default) or 'sidechain'")
+                       help="Peptide flexibility mode: 'rigid' (geometric surface search, default)")
     p_run.add_argument("--threads", "-t", type=int, default=os.cpu_count() or 4,
                        help="Total CPU worker threads to allocate across docking processes (default: all available CPUs)")
     p_run.add_argument("--max-workers", type=int, default=None,
                        help="Maximum concurrent docking worker processes (default: min(threads, 4) to prevent RAM thrashing)")
-    p_run.add_argument("--exhaustiveness", "-e", type=int, default=2, help="Stage 1 Vina search exhaustiveness (default: 2)")
-    p_run.add_argument("--refine-top", type=int, default=3, help="Stage 2: Number of top candidates to refine with flexible sidechains (default: 3, set 0 to disable)")
-    p_run.add_argument("--refine-exhaustiveness", type=int, default=4, help="Stage 2: Vina search exhaustiveness for flexible sidechain refinement (default: 4)")
+    p_run.add_argument("--exhaustiveness", "-e", type=int, default=2,
+                       help="Stage 1 geometric search exhaustiveness / rotational density (default: 2)")
+    p_run.add_argument("--refine-top", type=int, default=3,
+                       help="Stage 2: Number of top candidates to refine with local simplex minimization (default: 3, set 0 to disable)")
+    p_run.add_argument("--refine-exhaustiveness", type=int, default=4,
+                       help="Stage 2: Geometric search exhaustiveness for local interface refinement (default: 4)")
     p_run.add_argument("--num-modes", type=int, default=9, help="Max binding modes per peptide (default: 9)")
     p_run.add_argument("--top", type=int, default=5, help="Number of top hits to export complex PDBs for (default: 5)")
     p_run.add_argument("--rescore-modes", type=int, default=5,
                        help="Number of docked binding modes to evaluate and rescore per top candidate in Stage 3 (default: 5)")
     p_run.add_argument("--hf-token", help="HuggingFace API token for ESMFold inference endpoint")
-    p_run.add_argument("--vina-bin", help="Path to AutoDock Vina binary (default: search PATH)")
     p_run.add_argument("--obabel-bin", help="Path to OpenBabel binary (default: search PATH)")
     p_run.add_argument("--ml-model", help="Path to custom pre-trained ML model file (.pkl / .joblib)")
     p_run.add_argument("--relax", action="store_true", default=False,

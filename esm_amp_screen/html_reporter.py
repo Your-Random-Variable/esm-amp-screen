@@ -275,7 +275,7 @@ def generate_interactive_html_report(
       <div class="value" style="color: var(--primary);">{top_hit_id}</div>
     </div>
     <div class="stat-card">
-      <div class="label">Top Vina Affinity</div>
+      <div class="label">Top Docking Affinity</div>
       <div class="value">{top_hit.get("vina_dg", 0.0):.2f} <span style="font-size: 12px; font-weight: normal;">kcal/mol</span></div>
     </div>
     <div class="stat-card">
@@ -307,7 +307,7 @@ def generate_interactive_html_report(
           <tr>
             <th>Rank</th>
             <th>Peptide ID</th>
-            <th>Vina ΔG</th>
+            <th>Docking ΔG</th>
             <th>HADDOCK</th>
             <th>BSA (Å²)</th>
             <th>ML pKd</th>

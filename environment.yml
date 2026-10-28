@@ -5,11 +5,9 @@ channels:
   - defaults
 dependencies:
   - python>=3.10,<3.11
-  - vina>=1.2.5
   - openbabel>=3.1.1
   - rdkit>=2023.09
   - gemmi>=0.6.5
-  - meeko>=0.5.0
   - scipy>=1.10.0
   - numpy>=1.24.0
   - pandas>=2.0.0

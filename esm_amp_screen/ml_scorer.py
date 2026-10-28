@@ -143,7 +143,7 @@ class MLPeptideScorer:
         logger.info(f"Saved trained ML model to {out_path.name}")
 
     def _setup_features(self):
-        """Sets up feature names for 35D structural and physical interface fingerprints."""
+        """Sets up feature names for 34D structural and physical interface fingerprints."""
         feature_names = []
         for e1, e2 in ELEMENT_PAIRS:
             feature_names.append(f"pair_{e1}_{e2}_close")
@@ -151,23 +151,24 @@ class MLPeptideScorer:
         feature_names.extend([
             "e_vdw", "e_elec", "e_desolv", "bsa", "haddock_score", "e_air",
             "salt_bridges", "hbonds", "hydrophobic_contacts", "clashes",
-            "net_charge", "hydrophobic_moment", "boman_index", "length",
-            "vina_affinity"
+            "net_charge", "hydrophobic_moment", "boman_index", "length"
         ])
         self.feature_names = feature_names
 
     def compute_consensus_score(
         self,
-        vina_affinity: float,
-        haddock_score: float,
-        sol_delta_g: Optional[float] = None
+        docking_energy: Optional[float] = None,
+        haddock_score: float = -40.0,
+        sol_delta_g: Optional[float] = None,
+        **kwargs
     ) -> float:
         """Balanced consensus scoring combining docking, explicit physics, and solution thermodynamics."""
-        vina_norm = -float(vina_affinity)
+        dock_val = docking_energy if docking_energy is not None else kwargs.get("vina_affinity", -8.0)
+        dock_norm = -float(dock_val)
         haddock_norm = -float(haddock_score) / 10.0
-        sol_dg = sol_delta_g if sol_delta_g is not None else float(vina_affinity)
+        sol_dg = sol_delta_g if sol_delta_g is not None else float(dock_val)
         ml_pkd = max(3.0, min(12.0, -sol_dg / RT_LN10))
-        return float((0.35 * vina_norm) + (0.35 * haddock_norm) + (0.30 * ml_pkd))
+        return float((0.35 * dock_norm) + (0.35 * haddock_norm) + (0.30 * ml_pkd))
 
     def score_complex(
         self,
@@ -190,9 +191,9 @@ class MLPeptideScorer:
         # 2. Structural Fingerprint
         fp = extract_structural_fingerprint(complex_pdb)
 
-        # 3. Assemble Feature Vector (exactly 35 dimensions, no label leakage)
+        # 3. Assemble Feature Vector (exactly 34 dimensions, pure physical chemistry)
         pep_len = float(hit_meta.get("length", len(hit_meta.get("sequence", "")))) if (hit_meta.get("length") or hit_meta.get("sequence")) else 12.0
-        dock_aff = float(hit_meta["affinity"]) if "affinity" in hit_meta else -8.0
+        dock_energy = float(hit_meta.get("affinity", hit_meta.get("docking_energy", -8.0)))
 
         feat_vec = []
         for e1, e2 in ELEMENT_PAIRS:
@@ -213,8 +214,7 @@ class MLPeptideScorer:
             float(hit_meta.get("net_charge_z", 0.0)),
             float(hit_meta.get("hydrophobic_moment_muH", 0.0)),
             float(hit_meta.get("boman_index", 0.0)),
-            pep_len,
-            dock_aff
+            pep_len
         ])
 
         X_input = np.array([feat_vec])
@@ -230,7 +230,7 @@ class MLPeptideScorer:
             confidence = float(np.clip(70.0 + bsa_reward - variance_penalty - clash_penalty, 10.0, 95.0))
         else:
             # Transparent physical consensus derived from solution thermodynamics & docking
-            sol_dg = float(hit_meta.get("solution_delta_g", dock_aff))
+            sol_dg = float(hit_meta.get("solution_delta_g", dock_energy))
             ml_pkd = max(3.0, min(12.0, -sol_dg / RT_LN10))
             clash_pen = min(40.0, hit_meta.get("clashes", 0) * 10.0)
             bsa_score = min(30.0, (physics["bsa"] / 1000.0) * 30.0)
@@ -260,11 +260,11 @@ class MLPeptideScorer:
         else:
             kd_str = f"{kd_molar * 1e3:.1f} mM"
 
-        # Unified Balanced Consensus Score (combining Vina, HADDOCK, and solution thermodynamics)
-        vina_norm = -float(dock_aff)
+        # Unified Balanced Consensus Score (combining geometric docking, HADDOCK, and solution thermodynamics)
+        dock_norm = -float(dock_energy)
         haddock_norm = -float(physics["haddock_score"]) / 10.0
         ml_norm = float(ml_pkd)
-        consensus_score = (0.35 * vina_norm) + (0.35 * haddock_norm) + (0.30 * ml_norm)
+        consensus_score = (0.35 * dock_norm) + (0.35 * haddock_norm) + (0.30 * ml_norm)
 
         return {
             "haddock_score": physics["haddock_score"],

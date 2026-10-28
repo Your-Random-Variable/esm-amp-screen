@@ -163,12 +163,12 @@ def generate_pymol_script(
     palette = ["cyan", "magenta", "orange", "yellow", "tv_blue", "ruby", "green"]
 
     for idx, hit in enumerate(top_complexes):
-        c_path = hit["complex_pdb"]
+        c_path = Path(hit["complex_pdb"])
         pep_id = hit["pep_id"]
         color = palette[idx % len(palette)]
         obj_name = f"hit_{idx+1}_{pep_id}"
 
-        score_details = f"Vina: {hit['affinity']:.2f} kcal/mol"
+        score_details = f"Docking: {hit['affinity']:.2f} kcal/mol"
         if "haddock_score" in hit:
             score_details += f", HADDOCK: {hit['haddock_score']:.1f}"
         if "ml_kd" in hit:
@@ -217,9 +217,12 @@ def export_screening_report(
     ensure_dir(out_dir)
     complex_dir = ensure_dir(out_dir / "top_complexes")
 
-    # Sort by Consensus Score if present in any hit, else Composite Score descending, then Vina affinity ascending
+    # Sort by Consensus Score if present in any hit (ensuring rescored hits precede unrescored hits)
     if summary_data and any("consensus_score" in x for x in summary_data):
-        summary_data.sort(key=lambda x: (x.get("consensus_score", -999), x.get("composite_score", -999)), reverse=True)
+        def sort_key(x):
+            has_cs = "consensus_score" in x and x["consensus_score"] is not None
+            return (1 if has_cs else 0, x.get("consensus_score", -999999), x.get("composite_score", -999))
+        summary_data.sort(key=sort_key, reverse=True)
     else:
         summary_data.sort(key=lambda x: (x.get("composite_score", -999), -x.get("affinity", 0)), reverse=True)
 
@@ -232,9 +235,23 @@ def export_screening_report(
     # Generate co-complexes for top N hits
     top_hits = []
     for hit in summary_data[:top_n]:
+        pep_id = hit["pep_id"]
+        target_cpx = complex_dir / f"complex_{pep_id}.pdb"
+        complex_pdb = hit.get("complex_pdb")
+        docked_pdb = hit.get("docked_pdb")
         docked_pdbqt = hit.get("docked_pdbqt")
-        if docked_pdbqt and Path(docked_pdbqt).exists():
-            pep_id = hit["pep_id"]
+
+        if complex_pdb and Path(complex_pdb).exists():
+            if Path(complex_pdb).resolve() != target_cpx.resolve():
+                import shutil
+                shutil.copy2(complex_pdb, target_cpx)
+            hit["complex_pdb"] = target_cpx
+            top_hits.append(hit)
+        elif docked_pdb and Path(docked_pdb).exists():
+            create_cocomplex_pdb(receptor_pdb, Path(docked_pdb), target_cpx)
+            hit["complex_pdb"] = target_cpx
+            top_hits.append(hit)
+        elif docked_pdbqt and Path(docked_pdbqt).exists():
             pose_pdb = complex_dir / f"{pep_id}_pose.pdb"
             convert_docked_pdbqt_to_pdb(docked_pdbqt, pose_pdb, obabel_bin=obabel_bin)
             
@@ -246,9 +263,8 @@ def export_screening_report(
                 pose_to_use = pose_pdb
 
             if pose_to_use.exists():
-                complex_pdb = complex_dir / f"complex_{pep_id}.pdb"
-                create_cocomplex_pdb(receptor_pdb, pose_to_use, complex_pdb)
-                hit["complex_pdb"] = complex_pdb
+                create_cocomplex_pdb(receptor_pdb, pose_to_use, target_cpx)
+                hit["complex_pdb"] = target_cpx
                 top_hits.append(hit)
 
     df = pd.DataFrame(summary_data)
