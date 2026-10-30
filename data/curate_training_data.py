@@ -605,72 +605,12 @@ full_seq_csv = OUT_DIR / "full_training_set_sequence.csv"
 df_full_seq.to_csv(full_seq_csv, index=False)
 print(f"Saved {len(df_full_seq)} combined training sequences to {full_seq_csv}")
 
-# D. Protein-Peptide Complex Affinity Dataset (120 complexes with pre-computed structural features)
-complex_rows = []
-for c in COMPLEX_ENTRIES:
-    # Heuristic physical approximations matching HADDOCK scoring rules:
-    # Evdw roughly -3.0 to -4.0 kcal/mol per residue; BSA ~100-140 A2 per residue
-    n_res = c[4]
-    evdw = round(-3.5 * n_res - np.random.uniform(2.0, 8.0), 1)
-    eelec = round(-2.5 * n_res * (1 if "R" in c[3] or "K" in c[3] else 0.5) - np.random.uniform(1.0, 10.0), 1)
-    edesolv = round(0.015 * (110.0 * n_res) - np.random.uniform(1.0, 4.0), 1)
-    bsa = round(115.0 * n_res + np.random.uniform(50.0, 150.0), 1)
-    haddock = round(1.0 * evdw + 0.2 * eelec + 1.0 * edesolv + 0.1 * (-10.0), 2)
-    vina_aff = round(-0.75 * c[8] - np.random.uniform(0.5, 2.0), 1)
-    hbonds = max(1, int(0.8 * n_res + np.random.randint(-1, 3)))
-    salt_bridges = sum(1 for aa in c[3] if aa in ("K", "R")) if any(aa in c[3] for aa in ("D", "E", "K", "R")) else 0
-    hydrophobic_contacts = sum(1 for aa in c[3] if aa in ("L", "I", "V", "F", "W", "Y", "M")) * 2
-    
-    row_dict = {
-        "pdb_id": c[0],
-        "receptor_name": c[1],
-        "receptor_family": c[2],
-        "peptide_sequence": c[3],
-        "peptide_length": n_res,
-        "resolution_angstrom": c[5],
-        "assay_type": c[6],
-        "experimental_kd_umolar": c[7],
-        "experimental_pkd": c[8],
-        "experimental_delta_g_kcal": c[9],
-        "e_vdw": evdw,
-        "e_elec": eelec,
-        "e_desolv": edesolv,
-        "bsa": bsa,
-        "haddock_score": haddock,
-        "e_air": -10.0,
-        "salt_bridges": salt_bridges,
-        "hbonds": hbonds,
-        "hydrophobic_contacts": hydrophobic_contacts,
-        "clashes": 0,
-        "net_charge": sum(1 if aa in ("K", "R") else (-1 if aa in ("D", "E") else 0) for aa in c[3]),
-        "hydrophobic_moment": round(np.random.uniform(0.15, 0.45), 3),
-        "boman_index": round(np.random.uniform(1.0, 2.8), 2),
-        "length": n_res,
-        "vina_affinity": vina_aff
-    }
+# D. Protein-Peptide Complex Affinity Dataset (381 complexes with 56 physical parameters)
+try:
+    from data.generate_expanded_dataset import generate_dataset
+except ImportError:
+    from generate_expanded_dataset import generate_dataset
 
-    # Add 20 structural element pair distance features
-    from esm_amp_screen.ml_scorer import ELEMENT_PAIRS
-    has_cys = "C" in c[3] or "M" in c[3]
-    for e1, e2 in ELEMENT_PAIRS:
-        scale = 1.0
-        if "S" in (e1, e2) and not has_cys:
-            scale = 0.0
-        pair_base = {
-            ("C", "C"): 0.14, ("C", "N"): 0.08, ("C", "O"): 0.09, ("C", "S"): 0.03,
-            ("N", "N"): 0.03, ("N", "O"): 0.06, ("N", "S"): 0.01, ("O", "O"): 0.04,
-            ("O", "S"): 0.01, ("S", "S"): 0.02
-        }.get((e1, e2), 0.02)
-        close_val = round(max(0.0, (pair_base * n_res + np.random.uniform(-0.02, 0.04)) * scale), 4)
-        med_val = round(max(0.0, (pair_base * 2.2 * n_res + np.random.uniform(-0.04, 0.08)) * scale), 4)
-        row_dict[f"pair_{e1}_{e2}_close"] = close_val
-        row_dict[f"pair_{e1}_{e2}_medium"] = med_val
-
-    complex_rows.append(row_dict)
-
-df_complexes = pd.DataFrame(complex_rows)
-complex_csv = OUT_DIR / "pdbbind_peptide_affinity_dataset.csv"
-df_complexes.to_csv(complex_csv, index=False)
-print(f"Saved {len(df_complexes)} protein-peptide affinity complexes to {complex_csv}")
+generate_dataset()
 
 print("\n[OK] All training datasets curated and saved successfully!")

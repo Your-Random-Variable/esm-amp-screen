@@ -82,6 +82,31 @@ def calculate_net_charge(sequence: str, ph: float = 7.4) -> float:
     return round(pos - neg, 2)
 
 
+def calculate_isoelectric_point(sequence: str, tolerance: float = 0.01) -> float:
+    """
+    Computes theoretical isoelectric point (pI) where net charge equals 0.0.
+    Uses bisection search over Henderson-Hasselbalch charge profile across pH [2.0, 13.0].
+    """
+    seq = clean_sequence(sequence)
+    if not seq:
+        return 7.0
+
+    low_ph = 2.0
+    high_ph = 13.0
+
+    for _ in range(25):
+        mid_ph = (low_ph + high_ph) / 2.0
+        charge = calculate_net_charge(seq, ph=mid_ph)
+        if abs(charge) < tolerance:
+            return round(mid_ph, 2)
+        if charge > 0:
+            low_ph = mid_ph
+        else:
+            high_ph = mid_ph
+
+    return round((low_ph + high_ph) / 2.0, 2)
+
+
 def calculate_hydrophobic_moment(sequence: str, angle_deg: float = 100.0) -> float:
     """
     Computes the Eisenberg hydrophobic moment (μH) for a peptide.

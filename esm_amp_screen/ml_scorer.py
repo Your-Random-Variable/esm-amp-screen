@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
 from scipy.spatial.distance import cdist
 import gemmi
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, ExtraTreesRegressor
 import joblib
 
 from esm_amp_screen.utils import logger, AA_3TO1
@@ -21,7 +21,9 @@ from esm_amp_screen.amp_analyzer import (
     analyze_cocomplex_contacts,
     calculate_net_charge,
     calculate_hydrophobic_moment,
-    calculate_boman_index
+    calculate_boman_index,
+    calculate_isoelectric_point,
+    clean_sequence
 )
 
 # Complete set of 4 biological elements -> 10 unique unordered pairs
@@ -36,6 +38,31 @@ ELEMENT_PAIRS = [
 R_GAS_KCAL = 0.001987204   # Gas constant R in kcal / (mol * K)
 TEMP_KELVIN = 298.15       # Standard physiological temperature (25 °C)
 RT_LN10 = R_GAS_KCAL * TEMP_KELVIN * np.log(10.0)  # ~ 1.3638 kcal/mol per pKd unit
+
+# Complete 56-Dimensional Physical Chemistry & Structural Interface Feature Space
+FEATURE_NAMES = []
+for e1, e2 in ELEMENT_PAIRS:
+    FEATURE_NAMES.append(f"pair_{e1}_{e2}_close")
+    FEATURE_NAMES.append(f"pair_{e1}_{e2}_medium")
+
+FEATURE_NAMES.extend([
+    # Explicit HADDOCK & Physics terms
+    "e_vdw", "e_elec", "e_desolv", "bsa", "haddock_score", "e_air",
+    # Interface Contacts
+    "salt_bridges", "hbonds", "hydrophobic_contacts", "clashes",
+    # Core Sequence Biophysics
+    "net_charge", "hydrophobic_moment", "boman_index", "length",
+    # Size-Normalized Energetics
+    "e_vdw_per_res", "e_elec_per_res", "e_desolv_per_res", "bsa_per_res", "haddock_per_res",
+    # Interface Density & Packing Quality
+    "contact_density", "hbond_density", "hydrophobic_density", "clash_ratio",
+    # Electrostatic Architecture & Charge
+    "charge_density", "pos_charge_count", "neg_charge_count", "charge_asymmetry", "isoelectric_point",
+    # Chemical Composition & Structural Propensities
+    "aromatic_ratio", "aliphatic_ratio", "proline_ratio", "polar_ratio", "charged_ratio", "glycine_ratio",
+    # Solution Thermodynamics & Efficiency
+    "entropy_penalty", "ligand_efficiency_proxy"
+])
 
 
 def extract_structural_fingerprint(
@@ -101,11 +128,111 @@ def extract_structural_fingerprint(
     return features
 
 
+def extract_complex_features(
+    fp: Dict[str, float],
+    physics: Dict[str, float],
+    hit_meta: Dict[str, Any],
+    seq: str = ""
+) -> List[float]:
+    """
+    Extracts the complete 56-dimensional feature vector:
+    20 element-pair bins, 6 physics terms, 4 contact counts, 4 core biophysics,
+    5 size-normalized energetics, 4 interface density metrics, 5 charge architecture terms,
+    6 composition ratios, and 2 solution thermodynamics features.
+    """
+    L = float(hit_meta.get("length", len(seq) if seq else 12.0))
+    L = max(1.0, L)
+
+    # 1. 20 element pairs
+    feat_vec = []
+    for e1, e2 in ELEMENT_PAIRS:
+        feat_vec.append(fp.get(f"pair_{e1}_{e2}_close", 0.0))
+        feat_vec.append(fp.get(f"pair_{e1}_{e2}_medium", 0.0))
+
+    # 2. 6 Physics Terms
+    evdw = float(physics.get("e_vdw", -30.0))
+    eelec = float(physics.get("e_elec", -10.0))
+    edesolv = float(physics.get("e_desolv", 10.0))
+    bsa = float(physics.get("bsa", 1000.0))
+    haddock = float(physics.get("haddock_score", -40.0))
+    e_air = float(physics.get("e_air", -10.0))
+
+    feat_vec.extend([evdw, eelec, edesolv, bsa, haddock, e_air])
+
+    # 3. 4 Interface Contact Counts
+    salt_bridges = float(hit_meta.get("salt_bridges", 0.0))
+    hbonds = float(hit_meta.get("hbonds", 0.0))
+    hydrophobic = float(hit_meta.get("hydrophobic_contacts", 0.0))
+    clashes = float(hit_meta.get("clashes", 0.0))
+
+    feat_vec.extend([salt_bridges, hbonds, hydrophobic, clashes])
+
+    # 4. 4 Core Sequence Biophysics
+    net_charge = float(hit_meta.get("net_charge", hit_meta.get("net_charge_z", 0.0)))
+    mu_h = float(hit_meta.get("hydrophobic_moment", hit_meta.get("hydrophobic_moment_muH", 0.0)))
+    boman = float(hit_meta.get("boman_index", 0.0))
+
+    feat_vec.extend([net_charge, mu_h, boman, L])
+
+    # 5. 5 Size-Normalized Energetics
+    feat_vec.extend([
+        evdw / L,
+        eelec / L,
+        edesolv / L,
+        bsa / L,
+        haddock / L
+    ])
+
+    # 6. 4 Interface Density & Packing Quality
+    contact_density = (hbonds + salt_bridges + hydrophobic) / max(1.0, bsa / 100.0)
+    hbond_density = hbonds / L
+    hydrophobic_density = hydrophobic / L
+    clash_ratio = clashes / max(1.0, hbonds + hydrophobic)
+
+    feat_vec.extend([contact_density, hbond_density, hydrophobic_density, clash_ratio])
+
+    # 7. 5 Electrostatic Architecture & Charge
+    charge_density = net_charge / L
+    pos_count = float(seq.count('K') + seq.count('R') + seq.count('H')) if seq else float(hit_meta.get("pos_charge_count", 0.0))
+    neg_count = float(seq.count('D') + seq.count('E')) if seq else float(hit_meta.get("neg_charge_count", 0.0))
+    charge_asym = abs(pos_count - neg_count) / max(1.0, pos_count + neg_count)
+    pi = float(hit_meta.get("isoelectric_point", calculate_isoelectric_point(seq) if seq else 7.0))
+
+    feat_vec.extend([charge_density, pos_count, neg_count, charge_asym, pi])
+
+    # 8. 6 Chemical Composition & Structural Propensities
+    if seq:
+        arom_ratio = sum(seq.count(aa) for aa in ('F', 'Y', 'W')) / L
+        aliph_ratio = sum(seq.count(aa) for aa in ('L', 'I', 'V', 'M')) / L
+        pro_ratio = seq.count('P') / L
+        pol_ratio = sum(seq.count(aa) for aa in ('S', 'T', 'N', 'Q', 'C')) / L
+        chg_ratio = (pos_count + neg_count) / L
+        gly_ratio = seq.count('G') / L
+    else:
+        arom_ratio = float(hit_meta.get("aromatic_ratio", 0.0))
+        aliph_ratio = float(hit_meta.get("aliphatic_ratio", 0.0))
+        pro_ratio = float(hit_meta.get("proline_ratio", 0.0))
+        pol_ratio = float(hit_meta.get("polar_ratio", 0.0))
+        chg_ratio = float(hit_meta.get("charged_ratio", 0.0))
+        gly_ratio = float(hit_meta.get("glycine_ratio", 0.0))
+
+    feat_vec.extend([arom_ratio, aliph_ratio, pro_ratio, pol_ratio, chg_ratio, gly_ratio])
+
+    # 9. 2 Solution Thermodynamics & Efficiency
+    entropy_pen = 0.45 * max(0.0, L - 1.0)
+    le_proxy = -haddock / L
+
+    feat_vec.extend([entropy_pen, le_proxy])
+
+    return feat_vec
+
+
 class MLPeptideScorer:
     """
     Multi-Parametric Consensus & Machine Learning Scorer for Protein-Peptide Affinity.
-    Integrates RF-Score structural fingerprints with HADDOCK physics & AMP descriptors.
-    When a pre-trained model file (.pkl / .joblib) is provided, uses the trained regressor.
+    Integrates RF-Score structural fingerprints with HADDOCK physics, interface densities,
+    and AMP descriptors across 56 physical parameters.
+    When a pre-trained model file (.joblib) is provided, uses the trained regressor ensemble.
     When no pre-trained model is supplied, transparently marks is_calibrated = False and
     computes an uncalibrated heuristic consensus score based on explicit physics and docking terms.
     """
@@ -113,6 +240,7 @@ class MLPeptideScorer:
     def __init__(self, model_path: Optional[Path] = None):
         self.rf_model = None
         self.gb_model = None
+        self.et_model = None
         self.feature_names = []
         self.is_calibrated = False
 
@@ -124,15 +252,17 @@ class MLPeptideScorer:
             self.is_calibrated = False
 
     def _load_model(self, model_path: Path):
-        """Loads a pre-trained Random Forest and Gradient Boosting model from disk."""
+        """Loads a pre-trained Random Forest, Gradient Boosting, and Extra Trees model from disk."""
         data = joblib.load(str(model_path))
         if isinstance(data, dict):
             self.rf_model = data.get("rf")
             self.gb_model = data.get("gb")
-            self.feature_names = data.get("features", [])
+            self.et_model = data.get("et")
+            self.feature_names = data.get("features", list(FEATURE_NAMES))
+            models_desc = "RF + GB" + (" + ET" if self.et_model is not None else "")
             logger.info(
                 f"Loaded pre-trained ML model from {model_path.name} "
-                f"(RF + GB, {len(self.feature_names)} features)"
+                f"({models_desc}, {len(self.feature_names)} features)"
             )
         else:
             raise ValueError(
@@ -142,24 +272,19 @@ class MLPeptideScorer:
     def save_model(self, out_path: Path):
         """Saves current trained ensemble models to disk with joblib."""
         out_path = Path(out_path)
-        joblib.dump(
-            {"rf": self.rf_model, "gb": self.gb_model, "features": self.feature_names},
-            str(out_path)
-        )
+        payload = {
+            "rf": self.rf_model,
+            "gb": self.gb_model,
+            "features": self.feature_names
+        }
+        if self.et_model is not None:
+            payload["et"] = self.et_model
+        joblib.dump(payload, str(out_path), compress=3)
         logger.info(f"Saved trained ML model to {out_path.name}")
 
     def _setup_features(self):
-        """Sets up feature names for 34D structural and physical interface fingerprints."""
-        feature_names = []
-        for e1, e2 in ELEMENT_PAIRS:
-            feature_names.append(f"pair_{e1}_{e2}_close")
-            feature_names.append(f"pair_{e1}_{e2}_medium")
-        feature_names.extend([
-            "e_vdw", "e_elec", "e_desolv", "bsa", "haddock_score", "e_air",
-            "salt_bridges", "hbonds", "hydrophobic_contacts", "clashes",
-            "net_charge", "hydrophobic_moment", "boman_index", "length"
-        ])
-        self.feature_names = feature_names
+        """Sets up feature names for 56D structural and physical interface fingerprints."""
+        self.feature_names = list(FEATURE_NAMES)
 
     def compute_consensus_score(
         self,
@@ -234,41 +359,26 @@ class MLPeptideScorer:
                 hit_meta["hydrophobic_moment_muH"] = calculate_hydrophobic_moment(seq)
             if "boman_index" not in hit_meta:
                 hit_meta["boman_index"] = calculate_boman_index(seq)
+            if "isoelectric_point" not in hit_meta:
+                hit_meta["isoelectric_point"] = calculate_isoelectric_point(seq)
 
         pep_len = float(hit_meta.get("length", len(seq) if seq else 12.0))
         dock_energy = float(hit_meta.get("affinity", hit_meta.get("docking_energy", physics["haddock_score"] * 0.28)))
 
-        # Assemble Feature Vector (exactly 34 dimensions, pure physical chemistry)
-        feat_vec = []
-        for e1, e2 in ELEMENT_PAIRS:
-            feat_vec.append(fp.get(f"pair_{e1}_{e2}_close", 0.0))
-            feat_vec.append(fp.get(f"pair_{e1}_{e2}_medium", 0.0))
-
-        feat_vec.extend([
-            physics["e_vdw"],
-            physics["e_elec"],
-            physics["e_desolv"],
-            physics["bsa"],
-            physics["haddock_score"],
-            physics["e_air"],
-            float(hit_meta.get("salt_bridges", 0)),
-            float(hit_meta.get("hbonds", 0)),
-            float(hit_meta.get("hydrophobic_contacts", 0)),
-            float(hit_meta.get("clashes", 0)),
-            float(hit_meta.get("net_charge_z", hit_meta.get("net_charge", 0.0))),
-            float(hit_meta.get("hydrophobic_moment_muH", hit_meta.get("hydrophobic_moment", 0.0))),
-            float(hit_meta.get("boman_index", 0.0)),
-            pep_len
-        ])
-
+        # Assemble Feature Vector (exactly 56 dimensions, pure physical chemistry)
+        feat_vec = extract_complex_features(fp=fp, physics=physics, hit_meta=hit_meta, seq=seq or "")
         X_input = np.array([feat_vec])
 
-        # 4. Ensemble ML / Consensus Predictions
+        # 5. Ensemble ML / Consensus Predictions
         if self.is_calibrated and self.rf_model is not None and self.gb_model is not None:
-            pred_rf = float(self.rf_model.predict(X_input)[0])
-            pred_gb = float(self.gb_model.predict(X_input)[0])
-            ml_pkd = (pred_rf + pred_gb) / 2.0
-            variance_penalty = abs(pred_rf - pred_gb) * 10.0
+            preds = [
+                float(self.rf_model.predict(X_input)[0]),
+                float(self.gb_model.predict(X_input)[0])
+            ]
+            if getattr(self, "et_model", None) is not None:
+                preds.append(float(self.et_model.predict(X_input)[0]))
+            ml_pkd = float(np.mean(preds))
+            variance_penalty = (max(preds) - min(preds)) * 10.0
             clash_penalty = hit_meta.get("clashes", 0) * 15.0
             bsa_reward = min(30.0, (physics["bsa"] / 1000.0) * 30.0)
             confidence = float(np.clip(70.0 + bsa_reward - variance_penalty - clash_penalty, 10.0, 95.0))

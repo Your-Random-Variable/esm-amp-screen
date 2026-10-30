@@ -260,7 +260,7 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
             ml_arr = np.array([r["ml_delta_g"] for r in valid])
             ml_mae = float(np.mean(np.abs(ml_arr - exp_arr)))
             ml_rmse = float(np.sqrt(np.mean((ml_arr - exp_arr) ** 2)))
-            print(f"  • 34D Trained ML Ensemble:   MAE = {ml_mae:.2f} kcal/mol, RMSE = {ml_rmse:.2f} kcal/mol")
+            print(f"  • 56D Trained ML Ensemble:   MAE = {ml_mae:.2f} kcal/mol, RMSE = {ml_rmse:.2f} kcal/mol")
     print("="*115)
     print(f"\n[OK] Validation results saved to: {out_csv}\n")
     return df
