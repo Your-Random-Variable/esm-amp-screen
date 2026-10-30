@@ -788,7 +788,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
 def main():
     parser = argparse.ArgumentParser(
         prog="esm-amp-screen",
-        description="High-Throughput ESM-Powered Protein-Peptide & AMP Virtual Screening CLI"
+        description="High-Throughput ESM-Powered Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer"
     )
     parser.add_argument("--version", "-v", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)

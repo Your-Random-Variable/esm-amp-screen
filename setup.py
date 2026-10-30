@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="esm_amp_screen",
     version="1.4.0",
-    description="High-Throughput ESM-Powered Protein-Peptide Virtual Screening, Physics Engine, & In Silico Lead Optimizer",
+    description="High-Throughput ESM-Powered Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="Antigravity Computational Science Team",
