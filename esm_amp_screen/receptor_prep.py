@@ -65,19 +65,24 @@ def clean_receptor_pdb(
     return cleaned_pdb
 
 
+HYDROPHOBIC_RESIDUES = {"ALA", "VAL", "LEU", "ILE", "MET", "PHE", "TRP", "PRO", "TYR"}
+
+
 def detect_surface_cavities(
     pdb_path: Path,
-    max_pockets: int = 3,
-    min_points: int = 15,
-    padding: float = 8.0
+    max_pockets: int = 5,
+    min_points: int = 8,
+    padding: float = 8.0,
+    min_pocket_distance: float = 8.0
 ) -> List[Dict[str, Any]]:
     """
-    Detects surface cavities and druggable binding pockets on a target receptor:
-    1. Extracts receptor heavy atoms and generates a 3D probe grid (2.0 Å spacing).
-    2. Identifies probe points in the solvent-accessible surface layer (2.6 Å <= d <= 6.5 Å).
-    3. Evaluates directional enclosure / concavity across the 6 Cartesian axes (+/- X, +/- Y, +/- Z).
-    4. Clusters enclosed cavity points using DBSCAN to identify discrete surface pockets.
-    5. Returns ranked pockets with center coordinates, bounding dimensions, and surrounding residues.
+    Detects and profiles surface cavities and druggable binding pockets on a target receptor:
+    1. Extracts receptor heavy atoms and generates a 3D probe grid (1.8 Å spacing).
+    2. Identifies probe points in the solvent-accessible surface layer (2.5 Å <= d <= 6.2 Å).
+    3. Evaluates 7-ray Protein-Solvent-Protein (PSP / LIGSITE standard) directional enclosure.
+    4. Clusters enclosed cavity points using DBSCAN (eps=2.5 Å, min_samples=6) to identify discrete pockets.
+    5. Calculates cavity volume (Å³), mean enclosure depth, hydrophobic ratio, and 0-100 Druggability Score.
+    6. Filters for spatially distinct pockets (center distance >= min_pocket_distance) and ranks them.
     """
     pdb_path = Path(pdb_path)
     if not pdb_path.exists():
@@ -91,6 +96,8 @@ def detect_surface_cavities(
     for model in st:
         for chain in model:
             for res in chain:
+                if res.name.upper() in ("HOH", "WAT", "TIP3", "SOL", "DOD"):
+                    continue
                 for atom in res:
                     if atom.element.name != "H":
                         coords.append([atom.pos.x, atom.pos.y, atom.pos.z])
@@ -103,9 +110,9 @@ def detect_surface_cavities(
     prot_coords = np.array(coords)
     tree = cKDTree(prot_coords)
 
-    min_c = prot_coords.min(axis=0) - 2.0
-    max_c = prot_coords.max(axis=0) + 2.0
-    spacing = 2.0
+    spacing = 1.8
+    min_c = prot_coords.min(axis=0) - 1.5
+    max_c = prot_coords.max(axis=0) + 1.5
     gx = np.arange(min_c[0], max_c[0], spacing)
     gy = np.arange(min_c[1], max_c[1], spacing)
     gz = np.arange(min_c[2], max_c[2], spacing)
@@ -113,32 +120,61 @@ def detect_surface_cavities(
 
     # 1. Distance filter: keep points in solvent-accessible surface layer
     dists, _ = tree.query(grid_pts, k=1)
-    surf_mask = (dists >= 2.6) & (dists <= 6.5)
+    surf_mask = (dists >= 2.5) & (dists <= 6.2)
     surf_pts = grid_pts[surf_mask]
     if len(surf_pts) == 0:
         return []
 
-    # 2. Concavity check: evaluate directional enclosure within 8.0 Å
-    nbrs_list = tree.query_ball_point(surf_pts, r=8.0)
-    cavity_mask = []
-    for pt, nbrs in zip(surf_pts, nbrs_list):
-        if len(nbrs) < 8:
-            cavity_mask.append(False)
-            continue
-        diffs = prot_coords[nbrs] - pt
-        enc = sum([
-            np.any(diffs[:, 0] > 1.5), np.any(diffs[:, 0] < -1.5),
-            np.any(diffs[:, 1] > 1.5), np.any(diffs[:, 1] < -1.5),
-            np.any(diffs[:, 2] > 1.5), np.any(diffs[:, 2] < -1.5)
-        ])
-        cavity_mask.append(enc >= 4)
+    # 2. 7-ray PSP (Protein-Solvent-Protein) directional concavity evaluation
+    sqrt3 = np.sqrt(3.0)
+    rays = np.array([
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0 / sqrt3, 1.0 / sqrt3, 1.0 / sqrt3],
+        [1.0 / sqrt3, 1.0 / sqrt3, -1.0 / sqrt3],
+        [1.0 / sqrt3, -1.0 / sqrt3, 1.0 / sqrt3],
+        [-1.0 / sqrt3, 1.0 / sqrt3, 1.0 / sqrt3]
+    ])
 
-    cavity_pts = surf_pts[np.array(cavity_mask)]
-    if len(cavity_pts) < min_points:
-        return []
+    nbrs_list = tree.query_ball_point(surf_pts, r=9.5)
+    cavity_mask = []
+    enclosure_scores = []
+
+    for pt, nbrs in zip(surf_pts, nbrs_list):
+        if len(nbrs) < 6:
+            cavity_mask.append(False)
+            enclosure_scores.append(0)
+            continue
+        disp = prot_coords[nbrs] - pt
+        d = np.linalg.norm(disp, axis=1)
+        valid = (d >= 2.2) & (d <= 9.5)
+        if not np.any(valid):
+            cavity_mask.append(False)
+            enclosure_scores.append(0)
+            continue
+        u = disp[valid] / d[valid, None]
+        projs = np.dot(u, rays.T)
+        pos = np.any(projs > 0.60, axis=0)
+        neg = np.any(projs < -0.60, axis=0)
+        psp = int(np.sum(pos & neg))
+        enclosure_scores.append(psp)
+        cavity_mask.append(psp >= 2)
+
+    cavity_mask = np.array(cavity_mask)
+    cav_pts = surf_pts[cavity_mask]
+    cav_enc = np.array(enclosure_scores)[cavity_mask]
+
+    # Graceful fallback if surface concavity is unusually shallow
+    if len(cav_pts) < min_points:
+        cavity_mask_fb = np.array([e >= 1 for e in enclosure_scores])
+        cav_pts = surf_pts[cavity_mask_fb]
+        cav_enc = np.array(enclosure_scores)[cavity_mask_fb]
+        if len(cav_pts) < min_points:
+            return []
 
     # 3. Cluster cavity points with DBSCAN
-    db = DBSCAN(eps=4.0, min_samples=6).fit(cavity_pts)
+    db = DBSCAN(eps=2.5, min_samples=6).fit(cav_pts)
     labels = db.labels_
     unique_labels = [l for l in set(labels) if l != -1]
     if not unique_labels:
@@ -146,37 +182,82 @@ def detect_surface_cavities(
 
     clusters = []
     for l in unique_labels:
-        c_pts = cavity_pts[labels == l]
-        if len(c_pts) >= min_points:
-            clusters.append((len(c_pts), c_pts.mean(axis=0), c_pts))
-    clusters.sort(key=lambda x: x[0], reverse=True)
+        idx = np.where(labels == l)[0]
+        c_pts = cav_pts[idx]
+        c_enc = cav_enc[idx]
+        if len(c_pts) < min_points:
+            continue
 
-    results = []
-    for i, (size, center, c_pts) in enumerate(clusters[:max_pockets]):
-        span = c_pts.max(axis=0) - c_pts.min(axis=0) + (2 * padding)
-        dims = np.clip(span, 26.0, 50.0)
+        vol = len(c_pts) * (spacing ** 3)
+        mean_enc = float(np.mean(c_enc))
+        center = c_pts.mean(axis=0)
 
-        # Contact residues within 4.5 Å of cavity probes
+        # Surrounding lining residues within 4.5 Å
         near_indices = set()
         for idxs in tree.query_ball_point(c_pts, r=4.5):
             near_indices.update(idxs)
-        c_res = sorted(list(set(res_id_map[idx] for idx in near_indices)))
-        c_names = sorted(list(set(res_name_map[idx] for idx in near_indices)))
+        c_res = sorted(list(set(res_id_map[i] for i in near_indices)))
+        c_names = sorted(list(set(res_name_map[i] for i in near_indices)))
 
-        results.append({
-            "pocket_id": i + 1,
-            "num_points": int(size),
+        # Hydrophobic character
+        hydro_count = sum(1 for name in c_names if name.split(":")[-1].upper() in HYDROPHOBIC_RESIDUES)
+        hydro_ratio = hydro_count / max(1, len(c_names))
+
+        # Druggability score (0 to 100): Volume (40) + Enclosure Depth (35) + Hydrophobicity (25)
+        vol_score = min(40.0, 40.0 * (vol / 800.0))
+        enc_score = min(35.0, 35.0 * max(0.0, (mean_enc - 1.5) / 3.0))
+        hydro_score = min(25.0, 25.0 * (hydro_ratio / 0.50))
+        druggability = round(min(100.0, vol_score + enc_score + hydro_score), 1)
+
+        if druggability >= 75.0:
+            d_class = "High Druggability (Primary Cleft)"
+        elif druggability >= 50.0:
+            d_class = "Moderate Druggability (Secondary Pocket)"
+        else:
+            d_class = "Low Druggability (Shallow Groove)"
+
+        span = c_pts.max(axis=0) - c_pts.min(axis=0) + (2 * padding)
+        dims = np.clip(span, 26.0, 50.0)
+
+        clusters.append({
+            "druggability_score": druggability,
+            "druggability_class": d_class,
+            "volume_angstrom3": round(float(vol), 1),
+            "num_points": int(len(c_pts)),
             "center_x": round(float(center[0]), 3),
             "center_y": round(float(center[1]), 3),
             "center_z": round(float(center[2]), 3),
             "size_x": round(float(dims[0]), 1),
             "size_y": round(float(dims[1]), 1),
             "size_z": round(float(dims[2]), 1),
+            "enclosure_score": round(mean_enc, 2),
+            "hydrophobic_ratio": round(hydro_ratio, 3),
             "contact_residues": c_res,
-            "contact_residues_formatted": c_names
+            "contact_residues_formatted": c_names,
+            "center_vec": center
         })
 
-    return results
+    clusters.sort(key=lambda x: x["druggability_score"], reverse=True)
+
+    # Spatial distinctiveness filter (non-maximum suppression by distance)
+    distinct_pockets = []
+    for c in clusters:
+        c_pos = c["center_vec"]
+        too_close = False
+        for s in distinct_pockets:
+            if np.linalg.norm(c_pos - s["center_vec"]) < min_pocket_distance:
+                too_close = True
+                break
+        if not too_close:
+            distinct_pockets.append(c)
+        if len(distinct_pockets) >= max_pockets:
+            break
+
+    for i, p in enumerate(distinct_pockets, 1):
+        p["pocket_id"] = i
+        p.pop("center_vec", None)
+
+    return distinct_pockets
 
 
 def calculate_grid_box(
@@ -185,14 +266,15 @@ def calculate_grid_box(
     size: Optional[Tuple[float, float, float]] = None,
     pocket_residues: Optional[List[str]] = None,
     auto_pocket: bool = True,
-    padding: float = 8.0
+    padding: float = 8.0,
+    max_pockets: int = 5
 ) -> Dict[str, Any]:
     """
-    Calculates center (cx, cy, cz) and dimensions (sx, sy, sz) for Vina search box:
+    Calculates center (cx, cy, cz) and dimensions (sx, sy, sz) for peptide search box:
     - If center and size are given, uses them directly.
     - If pocket residues are specified (e.g. ['A:45', 'A:48']), centers on their coordinates.
     - If auto_pocket is True and neither center nor pocket_residues are given,
-      automatically detects the top surface cavity using LIGSITE-style grid concavity.
+      automatically detects the top surface cavity using LIGSITE-style 7-ray PSP concavity.
     - Otherwise, centers on receptor center-of-mass with automatic bounding dimensions.
     """
     if center is not None and size is not None:
@@ -233,12 +315,12 @@ def calculate_grid_box(
     # Automated geometric cavity detection if neither center nor pocket residues provided
     if not coords and auto_pocket:
         try:
-            detected_pockets = detect_surface_cavities(pdb_path, max_pockets=3, padding=padding)
+            detected_pockets = detect_surface_cavities(pdb_path, max_pockets=max_pockets, padding=padding)
             if detected_pockets:
                 p1 = detected_pockets[0]
                 logger.info(
-                    f"Auto-Pocket Finder: Discovered {len(detected_pockets)} surface cavity/pocket(s). "
-                    f"Targeting Pocket #1 ({p1['num_points']} probe points) centered at "
+                    f"Auto-Pocket Finder: Discovered {len(detected_pockets)} distinct surface cavity/pocket(s). "
+                    f"Targeting Pocket #1 (Druggability: {p1['druggability_score']}/100, {p1['volume_angstrom3']} Å³) centered at "
                     f"({p1['center_x']}, {p1['center_y']}, {p1['center_z']}) with dimensions "
                     f"({p1['size_x']} x {p1['size_y']} x {p1['size_z']}) Å "
                     f"enclosed by {len(p1['contact_residues'])} residues."

@@ -7,15 +7,16 @@ import sys
 import os
 import argparse
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import gemmi
 
 from esm_amp_screen import __version__
 from esm_amp_screen.utils import logger, read_fasta, ensure_dir, which_tool, AA_3TO1
 from esm_amp_screen.esm_folder import batch_fold_peptides, fetch_rcsb_pdb, predict_secondary_structure_propensity
-from esm_amp_screen.receptor_prep import clean_receptor_pdb, calculate_grid_box
+from esm_amp_screen.receptor_prep import clean_receptor_pdb, calculate_grid_box, detect_surface_cavities
 from esm_amp_screen.peptide_prep import batch_prepare_peptides, prepare_native_peptides, create_docked_pristine_pdb
 from esm_amp_screen.docking_engine import run_parallel_screening
+from esm_amp_screen.physics_engine import calculate_haddock_physics_score
 from esm_amp_screen.amp_analyzer import (
     calculate_net_charge,
     calculate_hydrophobic_moment,
@@ -32,15 +33,219 @@ from esm_amp_screen.amp_analyzer import (
 )
 from esm_amp_screen.reporter import (
     export_screening_report,
-    create_cocomplex_pdb
+    create_cocomplex_pdb,
+    generate_pockets_pymol_script
 )
 from esm_amp_screen.ml_scorer import MLPeptideScorer
+
+
+def run_multi_pocket_blind_docking(
+    args: argparse.Namespace,
+    rec_pdb_path: Path,
+    detected_pockets: List[Dict[str, Any]],
+    peptide_pdbs: List[Path],
+    sequences: Dict[str, str],
+    out_dir: Path,
+    obabel_bin: Optional[str] = None
+) -> None:
+    """
+    Executes comprehensive multi-pocket blind docking across the top N predicted druggable pockets:
+    1. Evaluates all N distinct surface cavities detected on the target receptor.
+    2. Docks peptide candidates into each pocket independently.
+    3. Evaluates binding poses with HADDOCK explicit physics, solution thermodynamics, and ML consensus scorer.
+    4. Produces a comparative multi-pocket leaderboard, CSV summary, and color-coded PyMOL visualization.
+    """
+    import pandas as pd
+    from esm_amp_screen.physics_engine import calculate_haddock_physics_score
+    from esm_amp_screen.ml_scorer import MLPeptideScorer
+    from esm_amp_screen.reporter import generate_pockets_pymol_script
+
+    print("\n" + "="*125)
+    print(f"      MULTI-POCKET BLIND DOCKING: SCREENING ACROSS {len(detected_pockets)} DRUGGABLE RECEPTOR POCKETS")
+    print("      Evaluating Spatial Druggability, Binding Affinities, HADDOCK Scores & Allosteric Cavities")
+    print("="*125 + "\n")
+
+    peptides_pdb_dir = out_dir / "peptides_pdb"
+    ligand_paths = prepare_native_peptides(peptide_pdbs, peptides_pdb_dir)
+
+    model_file = getattr(args, "ml_model", None)
+    if model_file is None:
+        default_pkg_model = Path(__file__).resolve().parent.parent / "data" / "trained_complex_ensemble.joblib"
+        if default_pkg_model.exists():
+            model_file = default_pkg_model
+    ml_scorer = MLPeptideScorer(model_path=model_file)
+
+    cpx_dir = out_dir / "top_complexes"
+    ensure_dir(cpx_dir)
+
+    pocket_records = []
+    docked_complex_map = {}
+
+    for i, p in enumerate(detected_pockets):
+        p_id = p.get("pocket_id", i + 1)
+        p_grid = {
+            "center_x": p["center_x"], "center_y": p["center_y"], "center_z": p["center_z"],
+            "size_x": p["size_x"], "size_y": p["size_y"], "size_z": p["size_z"]
+        }
+        p_res = p.get("contact_residues", [])
+        pocket_dir = out_dir / f"pocket_{p_id}"
+        dock_poses_dir = pocket_dir / "docking_poses"
+        ensure_dir(dock_poses_dir)
+
+        logger.info(
+            f"Screening Pocket #{p_id}: Druggability={p['druggability_score']}/100, "
+            f"Vol={p['volume_angstrom3']} Å³, Center=({p['center_x']}, {p['center_y']}, {p['center_z']})"
+        )
+
+        dock_res = run_parallel_screening(
+            ligands=ligand_paths,
+            receptor_pdb=rec_pdb_path,
+            grid=p_grid,
+            out_dir=dock_poses_dir,
+            threads=args.threads,
+            max_workers=args.max_workers,
+            exhaustiveness=args.exhaustiveness,
+            num_modes=args.num_modes
+        )
+
+        successful = [d for d in dock_res.values() if d.get("success")]
+        if not successful:
+            logger.warning(f"No successful poses found for Pocket #{p_id}.")
+            continue
+
+        successful.sort(key=lambda x: x.get("best_affinity", 0.0))
+        best_hit = successful[0]
+        pep_id = best_hit["pep_id"]
+        best_aff = best_hit["best_affinity"]
+        best_pose = Path(best_hit["docked_pdb"])
+
+        cpx_pdb = cpx_dir / f"pocket_{p_id}_{pep_id}_complex.pdb"
+        create_cocomplex_pdb(rec_pdb_path, best_pose, cpx_pdb)
+        docked_complex_map[p_id] = cpx_pdb
+
+        phys = calculate_haddock_physics_score(
+            cpx_pdb,
+            pocket_residues=p_res,
+            receptor_chain=getattr(args, "rec_chain", "A"),
+            peptide_chain="B"
+        )
+        seq = sequences.get(pep_id, "")
+        sol_aff = estimate_solution_affinity(
+            affinity_kcal_mol=best_aff,
+            sequence=seq,
+            conformation=getattr(args, "conformation", "auto"),
+            is_cyclic=getattr(args, "disulfide_lock", True)
+        )
+        ml_res = ml_scorer.score_complex(
+            complex_pdb=cpx_pdb,
+            hit_meta={"pep_id": pep_id, "sequence": seq, "affinity": best_aff},
+            pocket_residues=p_res
+        )
+
+        pocket_records.append({
+            "pocket_id": p_id,
+            "druggability_score": p["druggability_score"],
+            "druggability_class": p["druggability_class"],
+            "volume_angstrom3": p["volume_angstrom3"],
+            "enclosure_score": p["enclosure_score"],
+            "hydrophobic_ratio": p["hydrophobic_ratio"],
+            "center_x": p["center_x"],
+            "center_y": p["center_y"],
+            "center_z": p["center_z"],
+            "size_x": p["size_x"],
+            "size_y": p["size_y"],
+            "size_z": p["size_z"],
+            "num_lining_residues": len(p_res),
+            "contact_residues": ", ".join(p_res[:10]),
+            "best_peptide": pep_id,
+            "docking_delta_g": best_aff,
+            "haddock_score": round(phys["haddock_score"], 2),
+            "e_vdw": round(phys["e_vdw"], 2),
+            "e_elec": round(phys["e_elec"], 2),
+            "e_desolv": round(phys["e_desolv"], 2),
+            "bsa": round(phys["bsa"], 1),
+            "solution_delta_g": round(sol_aff["solution_delta_g"], 2),
+            "solution_kd": sol_aff["solution_kd"],
+            "ml_delta_g": round(ml_res["ml_delta_g"], 2),
+            "ml_kd": ml_res["ml_kd"],
+            "consensus_score": round(ml_res["consensus_score"], 2),
+            "complex_pdb": str(cpx_pdb)
+        })
+
+    if not pocket_records:
+        logger.error("No valid pocket docking results obtained.")
+        return
+
+    # Rank pockets by binding affinity (lowest Delta G) and consensus score
+    pocket_records.sort(key=lambda x: (x["docking_delta_g"], -x["consensus_score"]))
+    best_aff = pocket_records[0]["docking_delta_g"]
+
+    for r in pocket_records:
+        diff = r["docking_delta_g"] - best_aff
+        if diff <= 0.5:
+            r["pocket_role"] = "Primary Binding Site (Preferred)"
+        elif diff <= 2.5:
+            r["pocket_role"] = "Secondary Allosteric Site"
+        else:
+            r["pocket_role"] = "Non-Productive / Shallow Groove"
+
+    # Print Multi-Pocket Comparison Leaderboard
+    print("\n" + "="*145)
+    print("                  MULTI-POCKET BLIND DOCKING LEADERBOARD (RANKED BY BINDING AFFINITY & CONSENSUS SCORE)")
+    print("="*145)
+    header = (
+        f"{'Pocket':<8} {'Druggability':<14} {'Vol (Å³)':<10} {'Best Ligand':<16} "
+        f"{'Dock ΔG':<10} {'HADDOCK':<10} {'BSA (Å²)':<10} {'ML ΔG':<10} {'Pred Kd':<10} {'Sol. Kd':<12} {'Role / Assessment':<32}"
+    )
+    print(header)
+    print("-" * len(header))
+    for r in pocket_records:
+        p_str = f"P#{r['pocket_id']}"
+        d_str = f"{r['druggability_score']:.1f}/100"
+        vol_str = f"{r['volume_angstrom3']:.1f}"
+        dock_str = f"{r['docking_delta_g']:.2f}"
+        had_str = f"{r['haddock_score']:.1f}"
+        bsa_str = f"{r['bsa']:.1f}"
+        ml_str = f"{r['ml_delta_g']:.2f}"
+        pred_str = str(r['ml_kd'])
+        sol_str = str(r['solution_kd'])
+        role_str = r['pocket_role']
+        print(
+            f"{p_str:<8} {d_str:<14} {vol_str:<10} {r['best_peptide'][:14]:<16} "
+            f"{dock_str:<10} {had_str:<10} {bsa_str:<10} {ml_str:<10} {pred_str:<10} {sol_str:<12} {role_str:<32}"
+        )
+    print("="*145 + "\n")
+
+    # Export CSV
+    df = pd.DataFrame(pocket_records)
+    csv_out1 = out_dir / "blind_docking_5_pockets.csv"
+    csv_out2 = out_dir / "blind_docking_pockets.csv"
+    df.to_csv(csv_out1, index=False)
+    df.to_csv(csv_out2, index=False)
+
+    # Export PyMOL visualizer
+    pml_out = out_dir / "view_pockets.pml"
+    generate_pockets_pymol_script(
+        receptor_pdb=rec_pdb_path,
+        pockets=detected_pockets,
+        script_path=pml_out,
+        docked_complexes=docked_complex_map
+    )
+
+    logger.info(f"Multi-pocket blind docking results saved to: {csv_out1}")
+    logger.info(f"Color-coded PyMOL multi-pocket visualizer:   {pml_out}")
+    logger.info(f"Top pocket complex structures saved to:      {cpx_dir}\n")
 
 
 def run_pipeline(args: argparse.Namespace) -> None:
     """End-to-end automated screening workflow."""
     out_dir = Path(args.output).resolve()
     ensure_dir(out_dir)
+
+    blind_k = getattr(args, "blind_pockets", 1)
+    if getattr(args, "blind_docking", False) and blind_k <= 1:
+        args.blind_pockets = 5
+        blind_k = 5
 
     # 1. External tools verification
     obabel_bin = args.obabel_bin or which_tool("obabel")
@@ -73,7 +278,8 @@ def run_pipeline(args: argparse.Namespace) -> None:
         size=size_dims,
         pocket_residues=pocket_res,
         auto_pocket=args.auto_pocket,
-        padding=args.padding
+        padding=args.padding,
+        max_pockets=max(5, blind_k)
     )
 
     # 4. Load / Fold AMP Peptides
@@ -114,6 +320,23 @@ def run_pipeline(args: argparse.Namespace) -> None:
     if not peptide_pdbs:
         logger.error("No peptide PDB structures available for screening.")
         return
+
+    # Multi-Pocket Blind Docking Mode
+    if blind_k > 1 and not center_coords and not pocket_res:
+        target_pockets = grid.get("detected_pockets", [])
+        if not target_pockets:
+            target_pockets = detect_surface_cavities(rec_pdb_path, max_pockets=blind_k, padding=args.padding)
+        if len(target_pockets) > 1:
+            run_multi_pocket_blind_docking(
+                args=args,
+                rec_pdb_path=rec_pdb_path,
+                detected_pockets=target_pockets[:blind_k],
+                peptide_pdbs=peptide_pdbs,
+                sequences=sequences,
+                out_dir=out_dir,
+                obabel_bin=obabel_bin
+            )
+            return
 
     # Stage 1: High-Throughput Screen (Fast Filter)
     print("\n" + "="*70)
@@ -612,7 +835,21 @@ def main():
     p_run.add_argument("--relax", action="store_true", default=False,
                        help="Perform interface force-field relaxation (OpenBabel UFF) on top poses before Stage 3 scoring")
     p_run.add_argument("--no-ml", action="store_true", help="Disable Stage 3 HADDOCK physics and ML scoring")
+    p_run.add_argument("--blind-pockets", type=int, default=1,
+                       help="Number of top druggable surface pockets to dock against in blind docking mode (default: 1; set to 5 for comprehensive 5-pocket blind docking)")
+    p_run.add_argument("--blind-docking", action="store_true", default=False,
+                       help="Enable full multi-pocket blind docking across the top 5 predicted receptor surface pockets")
     p_run.set_defaults(func=run_pipeline)
+
+    # Command: pockets (standalone cavity detection and druggability scoring)
+    p_pock = subparsers.add_parser("pockets", help="Detect, profile, and score the top druggable binding pockets on a receptor PDB")
+    p_pock.add_argument("--receptor", "-r", required=True, help="Receptor PDB file path or 4-letter RCSB ID (e.g. 1ycr)")
+    p_pock.add_argument("--rec-chain", default="A", help="Receptor chain ID (default: A)")
+    p_pock.add_argument("--top-pockets", "-k", type=int, default=5, help="Number of top druggable pockets to detect (default: 5)")
+    p_pock.add_argument("--output", "-o", default="./pocket_analysis", help="Output directory for pocket reports and PyMOL scripts")
+    p_pock.add_argument("--padding", type=float, default=8.0, help="Grid box padding around pocket (Å)")
+    p_pock.add_argument("--min-distance", type=float, default=8.0, help="Minimum spatial distance between detected pocket centers in Å (default: 8.0)")
+    p_pock.set_defaults(func=run_pockets_cli)
 
     # Command: membrane (direct sequence-first AMP screening with ESM-2 & Wimley-White biophysics)
     p_mem = subparsers.add_parser("membrane", help="Direct sequence-first AMP screening using real ESM-2 representations & Wimley-White membrane biophysics (no docking required)")
@@ -669,6 +906,91 @@ def main():
 
     args = parser.parse_args()
     args.func(args)
+
+
+def run_pockets_cli(args: argparse.Namespace) -> None:
+    """CLI runner to detect, profile, and score the top druggable binding pockets on a receptor."""
+    import pandas as pd
+    from esm_amp_screen.receptor_prep import clean_receptor_pdb, detect_surface_cavities
+    from esm_amp_screen.esm_folder import fetch_rcsb_pdb
+    from esm_amp_screen.reporter import generate_pockets_pymol_script
+
+    out_dir = Path(args.output).resolve()
+    ensure_dir(out_dir)
+
+    print("\n" + "="*110)
+    print("      ESM-AMP-SCREEN: DRUGGABLE SURFACE POCKET DETECTION & GEOMETRIC CAVITY PROFILING")
+    print("      High-Resolution 7-Ray PSP LIGSITE Grid Concavity & 0-100 Druggability Scoring")
+    print("="*110 + "\n")
+
+    receptor_arg = args.receptor
+    rec_chain = getattr(args, "rec_chain", "A")
+    rec_pdb_path = out_dir / "target_receptor.pdb"
+    if Path(receptor_arg).exists():
+        rec_pdb_path = clean_receptor_pdb(Path(receptor_arg), rec_pdb_path, receptor_chain=rec_chain)
+    elif len(receptor_arg) == 4 and receptor_arg.isalnum():
+        fetch_rcsb_pdb(receptor_arg, rec_pdb_path)
+        rec_pdb_path = clean_receptor_pdb(rec_pdb_path, out_dir / "target_receptor_clean.pdb", receptor_chain=rec_chain)
+    else:
+        raise FileNotFoundError(f"Receptor file not found and not a valid 4-letter PDB ID: {receptor_arg}")
+
+    top_k = getattr(args, "top_pockets", 5)
+    padding = getattr(args, "padding", 8.0)
+    min_dist = getattr(args, "min_distance", 8.0)
+
+    pockets = detect_surface_cavities(
+        rec_pdb_path,
+        max_pockets=top_k,
+        padding=padding,
+        min_pocket_distance=min_dist
+    )
+
+    if not pockets:
+        logger.error(f"No surface cavities detected on receptor {rec_pdb_path.name}.")
+        return
+
+    print(f"Receptor File:     {rec_pdb_path.name} (Chain: {rec_chain})")
+    print(f"Pockets Detected:  {len(pockets)} distinct druggable binding sites identified\n")
+
+    header = f"{'ID':<4} {'Druggability':<14} {'Class':<16} {'Volume (Å³)':<13} {'Center (x, y, z)':<26} {'Enclosure':<11} {'Hydro%':<8} {'Lining Res':<10}"
+    print(header)
+    print("-" * len(header))
+    for p in pockets:
+        p_id = f"P#{p['pocket_id']}"
+        score_str = f"{p['druggability_score']:.1f} / 100"
+        d_class = p['druggability_class'].split(' (')[0]
+        vol_str = f"{p['volume_angstrom3']:.1f}"
+        center_str = f"({p['center_x']:>6.1f}, {p['center_y']:>6.1f}, {p['center_z']:>6.1f})"
+        enc_str = f"{p['enclosure_score']:.2f} / 7"
+        hydro_str = f"{p['hydrophobic_ratio']*100:.0f}%"
+        res_str = f"{len(p['contact_residues'])} residues"
+        print(f"{p_id:<4} {score_str:<14} {d_class:<16} {vol_str:<13} {center_str:<26} {enc_str:<11} {hydro_str:<8} {res_str:<10}")
+    print("-" * len(header))
+
+    # Detailed Pocket Breakdown
+    print("\nDetailed Lining Hotspots & Dimensions:")
+    for p in pockets:
+        hotspots = ", ".join(p['contact_residues_formatted'][:8])
+        if len(p['contact_residues_formatted']) > 8:
+            hotspots += f", ... (+{len(p['contact_residues_formatted']) - 8} more)"
+        print(f"  • Pocket #{p['pocket_id']}: [{p['druggability_class']}]")
+        print(f"    - Grid Box Size:  ({p['size_x']} x {p['size_y']} x {p['size_z']}) Å")
+        print(f"    - Probe Points:   {p['num_points']} surface points ({p['volume_angstrom3']} Å³)")
+        print(f"    - Lining Hotspots:{hotspots}")
+
+    # Export CSV
+    df = pd.DataFrame(pockets)
+    csv_out = out_dir / "pockets_summary.csv"
+    df.to_csv(csv_out, index=False)
+
+    # Export PyMOL script
+    pml_out = out_dir / "view_pockets.pml"
+    generate_pockets_pymol_script(rec_pdb_path, pockets, pml_out)
+
+    print("\n" + "="*110)
+    print(f"[OK] Pocket summary saved to:         {csv_out}")
+    print(f"[OK] Multi-color PyMOL visualizer to: {pml_out}")
+    print("="*110 + "\n")
 
 
 def run_benchmark_cli(args: argparse.Namespace) -> None:

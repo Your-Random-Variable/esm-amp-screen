@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Docking-Native%203D%20Geometric%20Surface%20Docking-blueviolet" alt="Native 3D Geometric Docking">
   <img src="https://img.shields.io/badge/Structure-ESM--2%20%7C%20ESMFold%20%7C%20PeptideBuilder-purple" alt="ESM & PeptideBuilder">
   <img src="https://img.shields.io/badge/Physics%20Engine-HADDOCK%202.4%20%7C%20Wimley--White%20Biophysics-red" alt="Physics & Biophysics">
-  <img src="https://img.shields.io/badge/Tests-28%20Passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-32%20Passing-brightgreen" alt="Tests">
 </p>
 
 **ESM-AMP-Screen** is a high-throughput, physics-grounded computational framework featuring a **Unified Dual-Mode Architecture**:
@@ -320,6 +320,8 @@ esm-amp-screen target \
 | `--ml-model` | | Path | `Auto-load` | Path to trained complex ensemble model (`data/trained_complex_ensemble.joblib` loaded automatically). |
 | `--relax` | | Flag | `False` | Perform interface force-field relaxation (UFF) before Stage 3 physics scoring. |
 | `--no-ml` | | Flag | `False` | Disable Stage 3 HADDOCK physics and consensus rescoring. |
+| `--blind-pockets` | | Int | `1` | Number of top druggable surface pockets to dock against in blind docking mode (e.g. `5`). |
+| `--blind-docking` | | Flag | `False` | Enable comprehensive multi-pocket blind docking across the top 5 predicted receptor surface cavities. |
 
 > **Structure Generation & ESMFold:** By default, ESM-AMP-Screen builds 3D peptide conformers locally using its high-speed biophysical conformer engine with Ramachandran secondary-structure dihedrals (PeptideBuilder). To use a hosted ESMFold service, configure a custom private/dedicated endpoint via the `ESMFOLD_API_URL` environment variable and set `HF_TOKEN`.
 
@@ -416,6 +418,31 @@ esm-amp-screen benchmark \
 | `--ref-rec-chain`| | String | `--rec-chain` | Receptor chain ID in reference crystal. |
 | `--ref-pep-chain`| | String | `--pep-chain` | Peptide chain ID in reference crystal. |
 | `--out-superimposed` | `-o` | Path | None | Path to save receptor-superimposed complex PDB. |
+
+---
+
+### 6. `esm-amp-screen pockets`
+
+Standalone cavity discovery, profiling, and 0–100 Druggability scoring using 7-ray Protein-Solvent-Protein (PSP / LIGSITE standard) grid concavity:
+
+```bash
+esm-amp-screen pockets \
+  --receptor benchmarks/1ycr.pdb \
+  --rec-chain A \
+  --top-pockets 5 \
+  --output ./pocket_analysis
+```
+
+#### Full Options Table:
+
+| Option | Flag | Type | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `--receptor` | `-r` | Path / ID | *Required* | Receptor PDB file path or 4-letter RCSB PDB ID (e.g. `1ycr`). |
+| `--rec-chain` | | String | `A` | Receptor chain ID to isolate and profile. |
+| `--top-pockets` | `-k` | Int | `5` | Number of top distinct druggable surface pockets to detect and score. |
+| `--output` | `-o` | Path | `./pocket_analysis` | Directory to save `pockets_summary.csv` and `view_pockets.pml`. |
+| `--padding` | | Float | `8.0` | Grid box padding around pocket bounding box (Å). |
+| `--min-distance` | | Float | `8.0` | Minimum spatial separation between pocket centers in Å (prevents redundant sub-lobes). |
 
 ---
 

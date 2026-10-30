@@ -285,3 +285,106 @@ def export_screening_report(
         logger.warning(f"Could not generate HTML report: {e}")
 
     return csv_path, pml_path
+
+
+def generate_pockets_pymol_script(
+    receptor_pdb: Path,
+    pockets: List[Dict[str, Any]],
+    script_path: Path,
+    docked_complexes: Optional[Dict[int, Path]] = None
+) -> Path:
+    """
+    Generates a color-coded PyMOL visualization script (.pml) for multi-pocket blind docking:
+    - Receptor shown in transparent cartoon (gray).
+    - Distinct vibrant colors for top pockets (Pocket 1: Firebrick/Red, Pocket 2: Green, Pocket 3: Marine/Cyan, Pocket 4: Orange/Yellow, Pocket 5: Magenta).
+    - Pocket lining residues shown in sticks.
+    - Pocket geometric centers marked with pseudoatoms & labeled spheres.
+    - Docked peptide poses / co-complexes loaded and highlighted if provided.
+    """
+    script_path = Path(script_path)
+    ensure_dir(script_path.parent)
+
+    colors = [
+        "firebrick",    # Pocket 1 (Primary)
+        "forest",       # Pocket 2 (Secondary)
+        "marine",       # Pocket 3
+        "brightorange", # Pocket 4
+        "warmpink",     # Pocket 5
+        "deepteal",
+        "violet",
+        "wheat"
+    ]
+
+    lines = [
+        "# PyMOL Visualization Script for ESM-AMP-Screen Multi-Pocket Cavities",
+        "reinitialize",
+        "bg_color white",
+        "set ray_shadows, 0",
+        "set antialias, 2",
+        f"load {receptor_pdb.resolve()}, receptor",
+        "hide everything, receptor",
+        "show cartoon, receptor",
+        "color gray80, receptor",
+        "set cartoon_transparency, 0.25, receptor",
+        ""
+    ]
+
+    for i, p in enumerate(pockets):
+        p_id = p.get("pocket_id", i + 1)
+        color = colors[(p_id - 1) % len(colors)]
+        cx, cy, cz = p["center_x"], p["center_y"], p["center_z"]
+        score = p.get("druggability_score", 0.0)
+        vol = p.get("volume_angstrom3", 0.0)
+
+        # Contact residue selection
+        c_res = p.get("contact_residues", [])
+        if c_res:
+            res_nums = []
+            for r in c_res:
+                parts = r.split(":")
+                num = parts[-1]
+                if num.lstrip("-").isdigit():
+                    res_nums.append(num)
+            if res_nums:
+                res_str = "+".join(res_nums)
+                lines.extend([
+                    f"# Pocket {p_id} (Druggability: {score}/100, Vol: {vol} A^3)",
+                    f"select pocket_{p_id}_res, receptor and resi {res_str}",
+                    f"show sticks, pocket_{p_id}_res",
+                    f"color {color}, pocket_{p_id}_res",
+                    f"set stick_radius, 0.22, pocket_{p_id}_res",
+                ])
+
+        # Center pseudoatom
+        lines.extend([
+            f"pseudoatom p{p_id}_center, pos=[{cx:.2f}, {cy:.2f}, {cz:.2f}], label='P{p_id} ({score})'",
+            f"show spheres, p{p_id}_center",
+            f"set sphere_scale, 1.2, p{p_id}_center",
+            f"color {color}, p{p_id}_center",
+            f"set label_size, 14, p{p_id}_center",
+            f"set label_color, {color}, p{p_id}_center",
+            ""
+        ])
+
+        # Load docked complex or peptide pose if provided
+        if docked_complexes and p_id in docked_complexes:
+            cpx_file = Path(docked_complexes[p_id])
+            if cpx_file.exists():
+                lines.extend([
+                    f"load {cpx_file.resolve()}, pocket_{p_id}_docked",
+                    f"show cartoon, pocket_{p_id}_docked and chain B",
+                    f"show sticks, pocket_{p_id}_docked and chain B",
+                    f"color {color}, pocket_{p_id}_docked and chain B",
+                    f"set stick_radius, 0.28, pocket_{p_id}_docked and chain B",
+                    ""
+                ])
+
+    lines.extend([
+        "zoom receptor",
+        "orient",
+        "set seq_view, 1"
+    ])
+
+    script_path.write_text("\n".join(lines), encoding="utf-8")
+    logger.info(f"Generated multi-pocket PyMOL visualization script: {script_path.name}")
+    return script_path
