@@ -1,13 +1,13 @@
 """
-ESM-2 Neural Sequence Embedding and Calibrated Tier-0 Prediction Engine.
+ESM-2 Neural Sequence Embedding and Representation Engine.
 
 Integrates real, locally cached Meta AI ESM-2 protein language models:
 - Default: facebook/esm2_t12_35M_UR50D (35M parameters, 480-dim embeddings, lightning-fast on CPU)
 - Optional: facebook/esm2_t30_150M_UR50D (150M parameters, 640-dim embeddings)
 Provides:
 1. Exact sequence embeddings (mean-pooled over amino acid tokens)
-2. Calibrated classification probability (Platt scaling / sigmoid)
-3. Conformal prediction uncertainty estimates for out-of-distribution sequences
+2. Batch embedding inference with CPU thread parallelization
+3. High-throughput representations for structural and downstream analysis
 """
 
 import os
@@ -25,7 +25,7 @@ DEFAULT_ESM_MODEL = "facebook/esm2_t12_35M_UR50D"
 
 class ESM2Embedder:
     """
-    High-Throughput ESM-2 Feature Extractor and Calibrated Sequence-Level Gate.
+    High-Throughput ESM-2 Feature Extractor and Sequence Representation Engine.
     """
 
     def __init__(
@@ -137,66 +137,41 @@ class ESM2Embedder:
         results.sort(key=lambda x: x[0])
         return [r[1] for r in results]
 
+    def analyze_sequence_embedding(
+        self,
+        sequence: str
+    ) -> Dict[str, Any]:
+        """
+        Extracts ESM-2 neural sequence representations and embedding statistics.
+        Provides 480-dimensional mean-pooled representations from ESM-2.
+        """
+        emb = self.embed_sequence(sequence)
+        emb_norm = float(np.linalg.norm(emb))
+        mean_act = float(np.mean(emb))
+        var_act = float(np.var(emb))
+
+        return {
+            "sequence": sequence,
+            "embedding": emb,
+            "embedding_norm": round(emb_norm, 3),
+            "mean_activation": round(mean_act, 4),
+            "variance": round(var_act, 4),
+            "embedding_dim": len(emb)
+        }
+
     def predict_amp_probability(
         self,
         sequence: str,
         calibrated_model_path: Optional[Path] = None
     ) -> Dict[str, Any]:
         """
-        Tier-0 Calibrated Sequence Prediction.
-        Uses ESM-2 480D embedding combined with Wimley-White membrane biophysics
-        evaluated through a calibrated logistic regression head.
+        Compatibility method returning sequence embedding properties.
+        Binary classification has been removed in favor of physical biophysical profiling.
         """
-        emb = self.embed_sequence(sequence)
-        emb_norm = float(np.linalg.norm(emb))
-
-        if calibrated_model_path is None:
-            default_path = Path(__file__).resolve().parent.parent / "data" / "calibrated_tier0_head.joblib"
-            if default_path.exists():
-                calibrated_model_path = default_path
-
-        prob = 0.5
-        if calibrated_model_path and Path(calibrated_model_path).exists():
-            import joblib
-            import warnings
-            from esm_amp_screen.membrane_scorer import evaluate_membrane_activity
-            mem = evaluate_membrane_activity(sequence)
-            biophys = np.array([
-                mem["mu_h_alpha_100deg"],
-                mem["mu_h_beta_160deg"],
-                mem["mean_dg_interfacial_kcal"],
-                mem["charge_density_z_per_res"],
-                mem["membrane_permeabilization_index"]
-            ])
-            x_vec = np.hstack([emb, biophys]).reshape(1, -1)
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore")
-                clf_data = joblib.load(str(calibrated_model_path))
-            clf = clf_data["model"] if isinstance(clf_data, dict) else clf_data
-            prob = float(clf.predict_proba(x_vec)[0, 1])
-        else:
-            mean_activation = float(np.mean(emb))
-            var_activation = float(np.var(emb))
-            raw_signal = (emb_norm - 5.5) * 1.5 + (var_activation * 10.0)
-            prob = float(np.clip(1.0 / (1.0 + np.exp(-raw_signal)), 0.05, 0.95))
-
-        # Conformal uncertainty: extreme norms indicate out-of-domain sequences
-        is_uncertain = emb_norm < 3.5 or emb_norm > 14.0
-
-        if prob >= 0.70:
-            tier = "Tier 1: High Confidence AMP (P >= 0.70)"
-        elif prob >= 0.50:
-            tier = "Tier 2: Likely AMP (0.50 <= P < 0.70)"
-        elif prob >= 0.30:
-            tier = "Tier 3: Low Probability (0.30 <= P < 0.50)"
-        else:
-            tier = "Tier 4: Inactive Decoy / Non-AMP (P < 0.30)"
-
+        analysis = self.analyze_sequence_embedding(sequence)
         return {
             "sequence": sequence,
-            "esm_prob_amp": round(float(prob), 4),
-            "tier": tier,
-            "embedding_norm": round(emb_norm, 3),
-            "is_uncertain_ood": is_uncertain,
-            "embedding_dim": len(emb)
+            "embedding_norm": analysis["embedding_norm"],
+            "embedding_dim": analysis["embedding_dim"],
+            "mean_activation": analysis["mean_activation"]
         }

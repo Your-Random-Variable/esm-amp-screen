@@ -130,15 +130,14 @@ class TestESMEmbedder(unittest.TestCase):
         self.assertEqual(emb.shape, (480,))
         self.assertFalse(np.isnan(emb).any())
 
-    def test_predict_amp_probability(self):
-        """Verifies calibrated probability scoring on active AMP."""
+    def test_sequence_embedding_statistics(self):
+        """Verifies neural representation statistics from ESM-2."""
         seq = "KWKLFKKIEKVGQNIRDGIIKAGPAVAVVGQATQIAK"
-        res = self.embedder.predict_amp_probability(seq)
-        self.assertIn("esm_prob_amp", res)
-        self.assertGreaterEqual(res["esm_prob_amp"], 0.0)
-        self.assertLessEqual(res["esm_prob_amp"], 1.0)
-        self.assertIn("tier", res)
-        self.assertIn("is_uncertain_ood", res)
+        res = self.embedder.analyze_sequence_embedding(seq)
+        self.assertIn("embedding", res)
+        self.assertEqual(res["embedding_dim"], 480)
+        self.assertGreater(res["embedding_norm"], 0.0)
+        self.assertIsInstance(res["embedding"], np.ndarray)
 
     def test_batch_embedding_consistency(self):
         """Verifies that batch embeddings match single sequence embeddings."""

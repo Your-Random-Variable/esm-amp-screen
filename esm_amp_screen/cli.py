@@ -891,11 +891,11 @@ def main():
 
     # Command: benchmark (compare against crystal structure or run benchmark suite)
     p_bench = subparsers.add_parser("benchmark", help="Compare docked pose against experimental crystal structure, or run benchmark suite")
-    p_bench.add_argument("--mode", choices=["target", "membrane", "all"], default="target",
-                         help="Benchmark mode: 'target' (co-crystal docking recovery) or 'membrane' (DBAASP AMP vs matched decoys, default: target)")
+    p_bench.add_argument("--mode", choices=["target"], default="target",
+                         help="Benchmark mode: 'target' (co-crystal docking recovery across 14 complexes, default: target)")
     p_bench.add_argument("--complex", "-c", help="Predicted complex PDB (target + peptide)")
     p_bench.add_argument("--reference", "-r", help="Reference co-crystal PDB")
-    p_bench.add_argument("--run-all", action="store_true", default=False, help="Run standardized validation suite across all 6 benchmark co-crystals")
+    p_bench.add_argument("--run-all", action="store_true", default=False, help="Run standardized validation suite across all 14 benchmark co-crystals")
     p_bench.add_argument("--benchmarks-dir", default="./benchmarks", help="Directory of benchmark PDB files (default: ./benchmarks)")
     p_bench.add_argument("--rec-chain", default="A", help="Receptor chain in predicted complex (default: A)")
     p_bench.add_argument("--pep-chain", default="B", help="Peptide chain in predicted complex (default: B)")
@@ -994,18 +994,6 @@ def run_pockets_cli(args: argparse.Namespace) -> None:
 
 
 def run_benchmark_cli(args: argparse.Namespace) -> None:
-    bench_mode = getattr(args, "mode", "target")
-    if bench_mode in ("membrane", "all"):
-        from run_membrane_benchmark import run_membrane_benchmark
-        b_dir = Path(args.benchmarks_dir).resolve()
-        data_dir = Path(__file__).resolve().parent.parent / "data"
-        amp_csv = data_dir / "dbaasp_amp_benchmark.csv"
-        decoy_csv = data_dir / "matched_negative_decoys.csv"
-        out_csv = b_dir / "membrane_benchmark_results.csv"
-        run_membrane_benchmark(amp_csv=amp_csv, decoy_csv=decoy_csv, out_csv=out_csv)
-        if bench_mode == "membrane":
-            return
-
     if getattr(args, "run_all", False) or (not args.complex and not args.reference):
         from run_benchmarks import run_all_benchmarks
         b_dir = Path(args.benchmarks_dir).resolve()
@@ -1304,43 +1292,19 @@ def run_membrane_screening_cli(args: argparse.Namespace) -> None:
 
     # 3. Sequence Evaluation
     records = []
-    logger.info("Computing Wimley-White interfacial partitioning and ESM-2 neural probabilities...")
+    logger.info("Computing Wimley-White interfacial partitioning and biophysical parameters...")
 
-    seq_list = list(sequences.values())
-    id_list = list(sequences.keys())
-
-    esm_probs = []
-    if embedder:
-        for seq in seq_list:
-            try:
-                res = embedder.predict_amp_probability(seq)
-                esm_probs.append(res)
-            except Exception as e:
-                logger.warning(f"ESM-2 embedding failed for sequence {seq[:10]}...: {e}")
-                esm_probs.append({"esm_prob_amp": 0.5, "tier": "Tier 3: Unscored", "is_uncertain_ood": True})
-    else:
-        esm_probs = [{"esm_prob_amp": 0.5, "tier": "N/A (ESM disabled)", "is_uncertain_ood": False} for _ in seq_list]
-
-    for (pep_id, seq), esm_res in zip(sequences.items(), esm_probs):
+    for pep_id, seq in sequences.items():
         try:
             mem = evaluate_membrane_activity(seq)
         except Exception as e:
             logger.warning(f"Skipping {pep_id}: {e}")
             continue
 
-        p_esm = esm_res["esm_prob_amp"]
-        p_mem = mem["bactericidal_probability"]
-        if embedder:
-            composite_prob = round((0.50 * p_esm) + (0.50 * p_mem), 4)
-        else:
-            composite_prob = round(p_mem, 4)
-
         records.append({
             "id": pep_id,
             "sequence": seq,
             "length": mem["length"],
-            "composite_score": composite_prob,
-            "esm_prob": p_esm,
             "mpi_score": mem["membrane_permeabilization_index"],
             "net_charge_z": mem["net_charge_z"],
             "charge_density": mem["charge_density_z_per_res"],
@@ -1359,29 +1323,29 @@ def run_membrane_screening_cli(args: argparse.Namespace) -> None:
         logger.error("No valid sequences could be scored.")
         return
 
-    # 4. Sort and assign percentile ranks
-    records.sort(key=lambda x: x["composite_score"], reverse=True)
+    # 4. Sort and assign percentile ranks by Membrane Permeabilization Index (MPI)
+    records.sort(key=lambda x: x["mpi_score"], reverse=True)
     n_rec = len(records)
     for i, r in enumerate(records, 1):
         r["rank"] = i
         r["percentile"] = round(100.0 * (1.0 - (i - 1) / max(1, n_rec)), 1)
 
     df_out = pd.DataFrame(records)
-    csv_out = out_dir / "membrane_amp_leaderboard.csv"
+    csv_out = out_dir / "membrane_biophysics_leaderboard.csv"
     df_out.to_csv(csv_out, index=False)
 
     # 5. CLI Printout
     top_n = min(getattr(args, "top", 20), n_rec)
     header = (
-        f"{'Rank':<5} {'ID':<18} {'Len':<5} {'Score':<8} {'ESM-P':<8} "
+        f"{'Rank':<5} {'ID':<18} {'Len':<5} "
         f"{'MPI':<7} {'Charge':<8} {'ΔG_if':<8} {'μH(α)':<8} {'Hemolysis':<16} {'TI':<6} {'Triage Verdict':<32}"
     )
     print(header)
     print("-" * len(header))
     for r in records[:top_n]:
         print(
-            f"{r['rank']:<5} {r['id'][:16]:<18} {r['length']:<5} {r['composite_score']:<8.3f} "
-            f"{r['esm_prob']:<8.3f} {r['mpi_score']:<7.1f} {r['net_charge_z']:<8.1f} "
+            f"{r['rank']:<5} {r['id'][:16]:<18} {r['length']:<5} "
+            f"{r['mpi_score']:<7.1f} {r['net_charge_z']:<8.1f} "
             f"{r['dg_interfacial']:<8.2f} {r['mu_h_alpha']:<8.2f} {r['hemolysis_tier'][:14]:<16} "
             f"{r['therapeutic_index']:<6.1f} {r['verdict'][:32]:<32}"
         )
@@ -1392,11 +1356,11 @@ def run_membrane_screening_cli(args: argparse.Namespace) -> None:
     t3_count = sum(1 for r in records if "Tier 3" in r["verdict"])
     t4_count = sum(1 for r in records if "Tier 4" in r["verdict"])
 
-    print("\nTriage Summary Across Library:")
-    print(f"  • Tier 1 (High Potency & Selective AMPs): {t1_count} ({t1_count/n_rec*100:.1f}%)")
-    print(f"  • Tier 2 (Moderate Activity):             {t2_count} ({t2_count/n_rec*100:.1f}%)")
-    print(f"  • Tier 3 (Weak / Marginal Activity):      {t3_count} ({t3_count/n_rec*100:.1f}%)")
-    print(f"  • Tier 4 (Inactive / Non-Membrane AMPs):  {t4_count} ({t4_count/n_rec*100:.1f}%)")
+    print("\nBiophysical Profiling Summary Across Library:")
+    print(f"  • Tier 1 (High Potency & Selective Permeabilizer): {t1_count} ({t1_count/n_rec*100:.1f}%)")
+    print(f"  • Tier 2 (Moderate Activity):                     {t2_count} ({t2_count/n_rec*100:.1f}%)")
+    print(f"  • Tier 3 (Weak / Marginal Activity):              {t3_count} ({t3_count/n_rec*100:.1f}%)")
+    print(f"  • Tier 4 (Inactive / Non-Membrane Active):        {t4_count} ({t4_count/n_rec*100:.1f}%)")
     print(f"\n[OK] Complete results exported to: {csv_out}\n")
 
 

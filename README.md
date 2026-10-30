@@ -146,25 +146,6 @@ To understand how ESM-AMP-Screen compares against the latest published protein-p
 
 ---
 
-### 🧬 DBAASP & APD3 Antimicrobial Peptide Benchmark Suite
-
-To evaluate direct antimicrobial screening accuracy without docking artifacts, ESM-AMP-Screen is benchmarked against **30 curated, experimentally verified antimicrobial peptides** from DBAASP and APD3 (with experimentally measured MIC values against gram-positive and gram-negative pathogens) evaluated against **30 length- and composition-matched scrambled negative controls** (exact same amino acid counts, but sequence order permuted to disrupt amphipathic moments and secondary structure).
-
-| Benchmark Parameter | Result / Metric | Scientific Context |
-| :--- | :--- | :--- |
-| **Total Benchmark Cohort ($N$)** | **60 peptides** (30 Active DBAASP AMPs + 30 Matched Scrambled Decoys) | Strict composition matching avoids trivial length/charge separation |
-| **ESM-2 Tier-0 ROC-AUC** | **`0.874`** | Pure sequence-grammar discrimination from local ESM-2 representations |
-| **Wimley-White Tier-1 ROC-AUC** | **`0.581`** | Interfacial partitioning & Eisenberg hydrophobic moment alone |
-| **Unified Consensus ROC-AUC** | **`0.788`** | Dual-tier combined probability |
-| **Precision-Recall AUC (PR-AUC)** | **`0.787`** | Robust recovery across imbalanced positive fractions |
-| **Decoy Rejection Specificity** | **`90.0%` (27 / 30 decoys rejected)** | Effectively eliminates false-positive scrambled decoys |
-| **Enrichment Factor (EF20%)** | **`1.50×`** (Theoretical max: $2.0\times$) | High concentration of true actives in the top tier |
-
-> [!TIP]
-> **Reproduce Benchmark:** Run `python run_membrane_benchmark.py` or `esm-amp-screen benchmark --mode membrane`.
-
----
-
 ## ⚡ Multi-Threading & CPU Resource Management
 
 ESM-AMP-Screen is built for high-throughput concurrency, scaling seamlessly from 4-core laptops to 128-core HPC compute nodes.
@@ -250,14 +231,14 @@ The `esm-amp-screen` CLI provides six core subcommands:
 2. `target` (or `run` / `screen`): End-to-end automated multi-stage target-directed virtual screening pipeline
 3. `optimize-hit`: In silico alanine scanning & affinity-maturing lead optimization
 4. `score`: Standalone physics and solution thermodynamics rescoring for existing complexes
-5. `benchmark`: CAPRI structural evaluation (`--mode target`) or DBAASP/decoy validation (`--mode membrane`)
+5. `benchmark`: CAPRI structural evaluation and affinity validation across 14 reference co-crystal benchmarks
 6. `pockets`: Surface cavity discovery, profiling, and 0–100 Druggability scoring using 7-ray PSP LIGSITE grid concavity
 
 ---
 
 ### 1. `esm-amp-screen membrane` (Direct Sequence-First Screening)
 
-Screens large peptide libraries (>50,000 peptides/hour) using local Meta AI ESM-2 representations coupled with Wimley-White interfacial partitioning ($\Delta G_{\text{w}\to\text{if}}$), octanol transfer free energy ($\Delta G_{\text{w}\to\text{oct}}$), Eisenberg amphipathic moments ($\mu_H$), and in silico therapeutic index.
+Screens large peptide libraries (>50,000 peptides/hour) using local Meta AI ESM-2 representations coupled with Wimley-White interfacial partitioning ($\Delta G_{\text{w}\to\text{if}}$), octanol transfer free energy ($\Delta G_{\text{w}\to\text{oct}}$), Eisenberg amphipathic moments ($\mu_H$), Membrane Permeabilization Index (MPI), and in silico therapeutic index.
 
 ```bash
 esm-amp-screen membrane \
@@ -392,13 +373,10 @@ esm-amp-screen score \
 Calculates CAPRI evaluation metrics against reference crystal structures or executes the validation suites.
 
 ```bash
-# Option A: Run direct DBAASP AMP vs matched scrambled decoy benchmark
-esm-amp-screen benchmark --mode membrane
+# Option A: Run complete reproducible co-crystal docking benchmark across 14 complexes
+esm-amp-screen benchmark --run-all
 
-# Option B: Run complete reproducible co-crystal docking benchmark across 14 complexes
-esm-amp-screen benchmark --mode target --run-all
-
-# Option C: Evaluate a specific predicted complex against reference crystal
+# Option B: Evaluate a specific predicted complex against reference crystal
 esm-amp-screen benchmark \
   --complex predicted_pose.pdb \
   --reference reference_crystal.pdb \
@@ -411,7 +389,7 @@ esm-amp-screen benchmark \
 
 | Option | Flag | Type | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `--mode` | | Choice | `target` | Benchmark mode: `membrane` (DBAASP AMP vs. decoys) or `target` (co-crystal docking). |
+| `--mode` | | Choice | `target` | Benchmark mode: `target` (co-crystal docking recovery across 14 complexes). |
 | `--run-all` | | Flag | `False` | Run standardized validation suite across all 14 benchmark co-crystals. |
 | `--benchmarks-dir` | | Path | `./benchmarks` | Directory containing benchmark co-crystal PDB files. |
 | `--complex` | `-c` | Path | None | Predicted / docked complex PDB file. |
@@ -474,26 +452,7 @@ screening_results/
 
 ESM-AMP-Screen ships with curated, reproducible training and validation datasets in `data/`, allowing all machine learning components to be retrained, verified, or fine-tuned on custom experimental data:
 
-### 1. Tier-0 Sequence Classification Dataset (`data/full_training_set_sequence.csv`)
-- **Sample Cohort ($N=377$):**
-  - **197 Curated Active AMPs** (`data/amp_training_dataset.csv`): Diverse natural and synthetic antimicrobial peptides across frog skin ($\alpha$-helical), mammalian cathelicidins/defensins ($\beta$-sheet, multi-disulfide), insect proline-rich, and marine AMPs.
-  - **180 Rigorously Matched Negative Controls** (`data/decoy_training_dataset.csv`):
-    - 90 Composition-matched scrambled sequences (identical amino acid counts, length, and formal charge).
-    - 90 Natural non-antimicrobial human/mammalian peptide fragments (cytoplasmic metabolic enzymes, cytoskeletal proteins, peptide hormones).
-- **Representation:** 485 dimensions (480-dim Meta AI ESM-2 mean-pooled hidden states + 5 Wimley-White biophysical features).
-- **5-Fold Stratified Cross-Validation:**
-  - **Cross-Validated ROC-AUC:** **`0.9180`**
-  - **Cross-Validated PR-AUC:** **`0.9290`**
-  - **Balanced Accuracy:** **`82.74%`**
-  - **Sensitivity / True Positive Rate:** **`83.25%`** (164 / 197)
-  - **Specificity / Decoy Rejection:** **`82.22%`** (148 / 180)
-  - **Enrichment Factor (EF20%):** **`1.89×`** (Theoretical max: $1.91\times$)
-- **Retrain Command:**
-  ```bash
-  python train_tier0_head.py --data data/full_training_set_sequence.csv --output data/calibrated_tier0_head.joblib
-  ```
-
-### 2. Protein-Peptide Complex Affinity Dataset (`data/pdbbind_peptide_affinity_dataset.csv`)
+### Protein-Peptide Complex Affinity Dataset (`data/pdbbind_peptide_affinity_dataset.csv`)
 - **Sample Cohort ($N=381$):** Curated protein-peptide complexes from PDBbind and BioLiP across 40 distinct receptor families (SH3, SH2, PDZ, Serine/Cysteine/Aspartic Proteases, Chaperones, Bromodomains, Chromodomains, Apoptosis regulators MDM2/Bcl-2, MHC Class I/II, Nuclear Receptors, and Kinases) with experimentally measured $K_d$/$K_i$/$\text{IC}_{50}$ ($\text{p}K_d$ values).
 - **Features:** 56 leak-free dimensions (20 atomic element pair distance counts $\le 4.0\text{ \AA}$ and $4.0 - 8.0\text{ \AA}$, HADDOCK explicit physics terms, BSA, salt bridges, hydrogen bonds, hydrophobic contacts, net charge, contact density, amino acid composition, sequence length, and isoelectric point).
 - **Zero-Target-Leakage Cross-Validation (GroupKFold across 40 Receptor Families):**
@@ -513,25 +472,19 @@ ESM-AMP-Screen ships with curated, reproducible training and validation datasets
 Run the comprehensive unit test, benchmark, and regression test suites:
 
 ```bash
-# 1. Train or re-evaluate Tier-0 sequence model (377 sequences, 5-fold CV)
-python train_tier0_head.py
-
-# 2. Train or re-evaluate complex affinity ensemble (381 complexes, GroupKFold CV across 40 families)
+# 1. Train or re-evaluate complex affinity ensemble (381 complexes, GroupKFold CV across 40 families)
 python train_ml_model.py
 
-# 3. Run Membrane AMP Benchmark Suite (30 DBAASP AMPs vs. 30 Matched Scrambled Decoys)
-python run_membrane_benchmark.py
-
-# 4. Run Standardized Co-Crystal Benchmark Suite (14 complexes, bound co-crystal pose rescoring)
+# 2. Run Standardized Co-Crystal Benchmark Suite (14 complexes, bound co-crystal pose rescoring)
 python run_benchmarks.py
 
-# 5. Run Comprehensive Physics & Biochemical Audit Suite (18 verification checks)
+# 3. Run Comprehensive Physics & Biochemical Audit Suite (18 verification checks)
 python test_all_18_bugs.py
 
-# 6. Run Automated Unit Test Suite (32 unit tests across physics, biophysics, multi-pocket detection, and ESM-2)
+# 4. Run Automated Unit Test Suite (32 unit tests across physics, biophysics, multi-pocket detection, and ESM-2)
 python -m unittest discover -s tests
 
-# 7. Run Pytest Suite
+# 5. Run Pytest Suite
 python -m pytest -q
 ```
 
