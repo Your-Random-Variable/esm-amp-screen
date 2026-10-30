@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "esm_amp_screen"
-version = "1.3.0"
+version = "1.4.0"
 description = "High-Throughput ESM-Powered Protein-Peptide Virtual Screening, Physics Engine, & In Silico Lead Optimizer"
 readme = "README.md"
 authors = [{ name = "Antigravity Computational Science Team" }]

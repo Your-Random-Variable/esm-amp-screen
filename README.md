@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11-blue?logo=python" alt="Python Version">
-  <img src="https://img.shields.io/badge/Version-1.3.0-brightgreen" alt="Version 1.3.0">
+  <img src="https://img.shields.io/badge/Version-1.4.0-brightgreen" alt="Version 1.4.0">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT">
   <img src="https://img.shields.io/badge/Docking-Native%203D%20Geometric%20Surface%20Docking-blueviolet" alt="Native 3D Geometric Docking">
   <img src="https://img.shields.io/badge/Structure-ESM--2%20%7C%20ESMFold%20%7C%20PeptideBuilder-purple" alt="ESM & PeptideBuilder">
@@ -18,7 +18,7 @@
 
 ## 🚀 Why ESM-AMP-Screen?
 
-| Metric / Feature | Traditional Peptide Docking (Rosetta FlexPepDock, CrankPep, HADDOCK Web) | Standard Small-Molecule Docking (Vina, Glide, AutoDock 4) | **ESM-AMP-Screen (v1.3.0)** |
+| Metric / Feature | Traditional Peptide Docking (Rosetta FlexPepDock, CrankPep, HADDOCK Web) | Standard Small-Molecule Docking (Vina, Glide, AutoDock 4) | **ESM-AMP-Screen (v1.4.0)** |
 | :--- | :--- | :--- | :--- |
 | **Sequence AMP Screening** | Not supported | Not supported | **>50,000 peptides / hour (ESM-2 + Wimley-White)** |
 | **Target Docking Speed** | 15–120 minutes / peptide | 1–5 minutes | **2–5 seconds / peptide (100% Native Cartesian PDB)** |
