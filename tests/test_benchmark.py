@@ -25,7 +25,8 @@ class TestBenchmark(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             out_csv = Path(tmp_dir) / "benchmark_results.csv"
             df = run_all_benchmarks(benchmarks_dir=Path("benchmarks"), out_csv=out_csv)
-            self.assertEqual(len(df), 6)
+            self.assertGreaterEqual(len(df), 6)
+            self.assertEqual(len(df), len(list(Path("benchmarks").glob("*.pdb"))))
             self.assertTrue(out_csv.exists())
             self.assertIn("pdb_id", df.columns)
             self.assertIn("haddock_score", df.columns)

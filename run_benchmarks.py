@@ -57,6 +57,30 @@ LITERATURE_BENCHMARKS = {
         "exp_delta_g": -7.18,
         "citation": "Vajdos et al., Protein Sci. 6:2297 (1997)"
     },
+    "1B07": {
+        "target": "Amphiphysin SH3",
+        "peptide_name": "Dynamin-1 (EVPGPVPPRR)",
+        "exp_kd_molar": 1.8e-6,
+        "exp_kd_str": "1.8 µM",
+        "exp_delta_g": -7.83,
+        "citation": "Owen et al., EMBO J. 17:5273 (1998)"
+    },
+    "1BBZ": {
+        "target": "c-Abl SH3 Domain",
+        "peptide_name": "3BP-2 (APSYSPPPPP)",
+        "exp_kd_molar": 1.5e-6,
+        "exp_kd_str": "1.5 µM",
+        "exp_delta_g": -7.94,
+        "citation": "Pisabarro et al., JMB 281:513 (1998)"
+    },
+    "1BE9": {
+        "target": "PSD-95 PDZ3 Domain",
+        "peptide_name": "CRIPT (KQTSV)",
+        "exp_kd_molar": 3.2e-6,
+        "exp_kd_str": "3.2 µM",
+        "exp_delta_g": -7.49,
+        "citation": "Doyle et al., Cell 85:1067 (1996)"
+    },
     "1CKA": {
         "target": "c-Crk N-SH3 Domain",
         "peptide_name": "C3G (9-mer core proxy)",
@@ -81,6 +105,38 @@ LITERATURE_BENCHMARKS = {
         "exp_delta_g": None,
         "citation": "Bailey et al., Protein Sci. 2:1155 (1993)"
     },
+    "1GBQ": {
+        "target": "Grb2 N-SH3 Domain",
+        "peptide_name": "Sos-1 (VPPPVPPRRR)",
+        "exp_kd_molar": 5.8e-6,
+        "exp_kd_str": "5.8 µM",
+        "exp_delta_g": -7.14,
+        "citation": "Goudreau et al., NSB 1:898 (1994)"
+    },
+    "1LCJ": {
+        "target": "Lck SH2 Domain",
+        "peptide_name": "pY Mimetic (EPQEEIPIYL)",
+        "exp_kd_molar": 3.5e-7,
+        "exp_kd_str": "0.35 µM",
+        "exp_delta_g": -8.80,
+        "citation": "Tong et al., Nature 384:263 (1996)"
+    },
+    "1PRL": {
+        "target": "c-Src SH3 Domain",
+        "peptide_name": "Pro-rich (AFAPPLPRR)",
+        "exp_kd_molar": 8.0e-6,
+        "exp_kd_str": "8.0 µM",
+        "exp_delta_g": -6.95,
+        "citation": "Feng et al., Science 266:1241 (1994)"
+    },
+    "1SEM": {
+        "target": "Sem-5 / Grb2 SH3",
+        "peptide_name": "Sos-derived (PPPVPPR)",
+        "exp_kd_molar": 1.2e-5,
+        "exp_kd_str": "12.0 µM",
+        "exp_delta_g": -6.71,
+        "citation": "Lim et al., Nature 372:375 (1994)"
+    },
     "1SSH": {
         "target": "Yeast YFR024C-A SH3",
         "peptide_name": "Sla1 (GPPPAMPARPT)",
@@ -88,6 +144,14 @@ LITERATURE_BENCHMARKS = {
         "exp_kd_str": "Unreported",
         "exp_delta_g": None,
         "citation": "SGX Consortium (2004)"
+    },
+    "1VJ6": {
+        "target": "INAD PDZ3 Domain",
+        "peptide_name": "TRP C-tail (YLVTSV)",
+        "exp_kd_molar": 2.2e-7,
+        "exp_kd_str": "0.22 µM",
+        "exp_delta_g": -9.08,
+        "citation": "van Huizen et al., EMBO J. 17:2285 (1998)"
     },
     "1YCR": {
         "target": "MDM2 Oncoprotein",
