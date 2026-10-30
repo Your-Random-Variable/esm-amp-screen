@@ -1,6 +1,6 @@
 """
 Target Protein Receptor Preparation Module.
-Cleans receptor PDB, computes binding site grid box, and converts to PDBQT.
+Cleans receptor PDB, computes binding site grid box, and detects surface cavities.
 """
 
 import shutil

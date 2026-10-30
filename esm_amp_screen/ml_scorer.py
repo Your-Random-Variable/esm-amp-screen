@@ -294,7 +294,7 @@ class MLPeptideScorer:
         **kwargs
     ) -> float:
         """Balanced consensus scoring combining docking, explicit physics, and solution thermodynamics."""
-        dock_val = docking_energy if docking_energy is not None else kwargs.get("vina_affinity", -8.0)
+        dock_val = docking_energy if docking_energy is not None else kwargs.get("docking_affinity", kwargs.get("docking_energy", kwargs.get("vina_affinity", -8.0)))
         dock_norm = -float(dock_val)
         haddock_norm = -float(haddock_score) / 10.0
         sol_dg = sol_delta_g if sol_delta_g is not None else float(dock_val)

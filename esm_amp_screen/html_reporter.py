@@ -23,7 +23,7 @@ def generate_interactive_html_report(
     Creates a single-file, zero-dependency interactive HTML report containing:
     - 3Dmol.js WebGL molecular viewer showing receptor + docked AMP poses
     - Interactive consensus ranking leaderboard with clickable row selection
-    - Physical and Machine Learning breakdown cards (Vina, HADDOCK, ML pKd, BSA)
+    - Physical and Machine Learning breakdown cards (Docking ΔG, HADDOCK, ML pKd, BSA)
     - Full offline/file:// browser compatibility (no local web server needed)
     """
     out_html = Path(out_html)
@@ -53,7 +53,7 @@ def generate_interactive_html_report(
             "pep_id": pep_id,
             "sequence": hit.get("sequence", ""),
             "length": hit.get("length", 0),
-            "vina_dg": hit.get("affinity", 0.0),
+            "docking_dg": hit.get("affinity", 0.0),
             "haddock_score": hit.get("haddock_score", "N/A"),
             "bsa": hit.get("bsa", "N/A"),
             "ml_pkd": hit.get("ml_pkd", "N/A"),
@@ -262,7 +262,7 @@ def generate_interactive_html_report(
   <div class="header">
     <div>
       <h1>ESM-AMP-Screen Interactive 3D Report</h1>
-      <div class="subtitle">Multi-Stage Protein-Peptide Screening Funnel (Vina HTVS + HADDOCK Physics + ML Rescoring)</div>
+      <div class="subtitle">Multi-Stage Protein-Peptide Screening Funnel (Native 3D Geometric Docking + HADDOCK Physics + ML Rescoring)</div>
     </div>
     <div style="text-align: right;">
       <span class="badge badge-refined">3-Stage Funnel Verified</span>
@@ -276,7 +276,7 @@ def generate_interactive_html_report(
     </div>
     <div class="stat-card">
       <div class="label">Top Docking Affinity</div>
-      <div class="value">{top_hit.get("vina_dg", 0.0):.2f} <span style="font-size: 12px; font-weight: normal;">kcal/mol</span></div>
+      <div class="value">{top_hit.get("docking_dg", top_hit.get("vina_dg", 0.0)):.2f} <span style="font-size: 12px; font-weight: normal;">kcal/mol</span></div>
     </div>
     <div class="stat-card">
       <div class="label">Best HADDOCK Score</div>
@@ -370,7 +370,7 @@ def generate_interactive_html_report(
             <strong>${{safePepId}}</strong><br>
             <span class="seq-tag">${{safeSeq}}</span>
           </td>
-          <td style="color: var(--primary); font-weight: 600;">${{h.vina_dg.toFixed(2)}}</td>
+          <td style="color: var(--primary); font-weight: 600;">${{(h.docking_dg !== undefined ? h.docking_dg : h.vina_dg).toFixed(2)}}</td>
           <td style="color: var(--highlight);">${{hscore}}</td>
           <td>${{bsa}}</td>
           <td>${{ml_pkd}}</td>

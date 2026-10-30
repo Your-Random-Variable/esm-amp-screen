@@ -465,7 +465,7 @@ def analyze_complex_contacts(
 ) -> Dict[str, Any]:
     """
     Analyzes inter-molecular contacts between target receptor and docked peptide pose.
-    Supports either pure peptide PDBs (e.g. from Vina) or 2-chain co-complex PDBs.
+    Supports either single-chain peptide PDBs (e.g. from geometric docking) or 2-chain co-complex PDBs.
     """
     # If the exact same file is passed as both receptor and ligand, delegate to analyze_cocomplex_contacts
     try:
@@ -572,7 +572,7 @@ def compute_composite_score(
     calibrated to AMP literature (Wang et al. APD3; Fjell et al. Nat. Rev. Drug Discov. 2012).
 
     Score composition:
-    - Vina ΔG (negated, so high affinity = high score)
+    - Docking ΔG (negated, so high affinity = high score)
     - Salt bridge bonus: 1.5 per bridge (anchors charged contacts)
     - H-bond bonus: 0.5 per bond (up to 8 bonds; returns diminish quickly)
     - Amphipathic moment bonus: 2.0 × μH (rewards membrane-active AMPs)

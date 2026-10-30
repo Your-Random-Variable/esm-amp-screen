@@ -851,8 +851,8 @@ def main():
     p_pock.add_argument("--min-distance", type=float, default=8.0, help="Minimum spatial distance between detected pocket centers in Å (default: 8.0)")
     p_pock.set_defaults(func=run_pockets_cli)
 
-    # Command: membrane (direct sequence-first AMP screening with ESM-2 & Wimley-White biophysics)
-    p_mem = subparsers.add_parser("membrane", help="Direct sequence-first AMP screening using real ESM-2 representations & Wimley-White membrane biophysics (no docking required)")
+    # Command: membrane (sequence-first membrane biophysical profiling with ESM-2 & Wimley-White biophysics)
+    p_mem = subparsers.add_parser("membrane", help="Sequence-first membrane biophysical profiling using ESM-2 representations & Wimley-White thermodynamics (no docking required)")
     p_mem.add_argument("--library", "-l", required=True, help="Peptide library FASTA file, or CSV containing a 'sequence' column")
     p_mem.add_argument("--output", "-o", default="./membrane_screening_results", help="Output directory for membrane screening leaderboard")
     p_mem.add_argument("--model", default="facebook/esm2_t12_35M_UR50D", help="ESM-2 model name or checkpoint path (default: facebook/esm2_t12_35M_UR50D)")
@@ -1244,8 +1244,8 @@ def run_membrane_screening_cli(args: argparse.Namespace) -> None:
     ensure_dir(out_dir)
 
     print("\n" + "="*115)
-    print("      ESM-AMP-SCREEN: MEMBRANE-DIRECTED ANTIMICROBIAL PEPTIDE SCREENING")
-    print("      Dual-Tier Sequence Screening: ESM-2 Neural Representation + Wimley-White Membrane Biophysics")
+    print("      ESM-AMP-SCREEN: MEMBRANE BIOPHYSICAL PROFILING & PERMEABILIZATION SCREENING")
+    print("      Sequence Biophysics: ESM-2 Neural Representations + Wimley-White Interfacial Thermodynamics")
     print("="*115 + "\n")
 
     # 1. Parse Input Sequences

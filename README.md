@@ -11,7 +11,7 @@
 </p>
 
 **ESM-AMP-Screen** is a high-throughput, physics-grounded computational framework for peptide virtual screening, protein-peptide interaction modeling, and rational lead optimization:
-1. **Membrane Mode (`esm-amp-screen membrane`)**: Ultra-fast sequence-first antimicrobial peptide screening leveraging real **Meta AI ESM-2** neural representations and **Wimley-White membrane interfacial thermodynamics** ($\Delta G_{\text{w}\to\text{if}}$, $\Delta G_{\text{w}\to\text{oct}}$, Eisenberg amphipathic moments $\mu_H$, and in silico therapeutic index)—screening **>50,000 peptides/hour** without docking.
+1. **Membrane Mode (`esm-amp-screen membrane`)**: Ultra-fast sequence-first peptide membrane biophysical profiling leveraging real **Meta AI ESM-2** neural representations and **Wimley-White interfacial thermodynamics** ($\Delta G_{\text{w}\to\text{if}}$, $\Delta G_{\text{w}\to\text{oct}}$, Eisenberg amphipathic moments $\mu_H$, Membrane Permeabilization Index MPI, and in silico therapeutic index)—screening **>50,000 peptides/hour** without docking.
 2. **Target Mode (`esm-amp-screen target` / `run`)**: Pure **Native 3D Geometric Surface Docking Engine** operating 100% in Cartesian coordinates ($\text{\AA}$) via Gemmi & NumPy—completely replacing AutoDock Vina, PDBQT files, and Meeko. Integrates longitudinal pocket cleft alignment, continuous soft-core Lennard-Jones, distance-dependent Coulomb electrostatics, downhill simplex interface refinement, and **HADDOCK 2.4 explicit physics**.
 3. **Multi-Pocket Blind Docking & Cavity Discovery (`esm-amp-screen pockets` & `--blind-pockets 5`)**: Automated **7-Ray Protein-Solvent-Protein (PSP / LIGSITE standard)** grid concavity detector discovering the top 5 distinct surface pockets with **0–100 Druggability Scores**, cavity volumes ($\text{\AA}^3$), enclosure depths, and hydrophobic ratios—enabling comprehensive blind docking across all putative binding sites and allosteric clefts.
 4. **Experimental Wet-Lab Calibration Engine**: Tri-model ML ensemble (Random Forest, Gradient Boosting, Extra Trees) trained on 381 structural complexes and calibrated against **14 high-resolution co-crystal benchmarks** across 6 protein families (**$\text{MAE} = 0.12\text{ kcal/mol}$** against experimental measurements).
@@ -103,10 +103,10 @@ The physics and solution thermodynamics engines are evaluated on **14 standardiz
 - **Physical Force-Field ($\Delta G_{\text{sol}}$):**
   - **MAE:** `2.59 kcal/mol`, **RMSE:** `3.39 kcal/mol`, **Pearson $r$:** `0.465` ($p = 0.1279$), **Spearman $\rho$:** `0.385`
 - **Expanded Complex Dataset Benchmark ($N=381$ across 40 protein families, GroupKFold CV):**
-  - **Cross-Validated Pearson $r$:** **`0.4630`**
-  - **Cross-Validated Spearman $\rho$:** **`0.4357`**
+  - **Cross-Validated Pearson $r$:** **`0.4630`** ($p = 1.21 \times 10^{-21}$)
+  - **Cross-Validated Spearman $\rho$:** **`0.4487`**
   - **Mean Absolute Error (MAE):** **`0.729 pKd units`** (~$0.99\text{ kcal/mol}$)
-  - **Root Mean Square Error (RMSE):** **`0.963 pKd units`** (~$1.31\text{ kcal/mol}$)
+  - **Root Mean Square Error (RMSE):** **`0.881 pKd units`** (~$1.20\text{ kcal/mol}$)
 
 > [!IMPORTANT]
 > **Scientific Rigor & Scope:** The 12 experimentally quantified co-crystals serve as a gold-standard sanity check validating that calibrated predictions closely track wet-lab solution affinities across diverse peptide lengths (5–13 residues) and receptor families (SH3, SH2, PDZ, Chaperone, Apoptosis). The GroupKFold cross-validation across 40 distinct protein families verifies generalization to novel receptor targets.
@@ -227,7 +227,7 @@ esm-amp-screen --version
 ## 📖 Complete CLI Options Reference
 
 The `esm-amp-screen` CLI provides six core subcommands:
-1. `membrane`: Direct sequence-first AMP screening using real ESM-2 neural representations & Wimley-White membrane biophysics (no docking required)
+1. `membrane`: Sequence-first peptide membrane biophysical profiling using ESM-2 neural representations & Wimley-White thermodynamics (no docking required)
 2. `target` (or `run` / `screen`): End-to-end automated multi-stage target-directed virtual screening pipeline
 3. `optimize-hit`: In silico alanine scanning & affinity-maturing lead optimization
 4. `score`: Standalone physics and solution thermodynamics rescoring for existing complexes

@@ -2,18 +2,21 @@
 """
 ESM-AMP-Screen Benchmark: Bound Co-Crystal Pose Rescoring & Sanity Check.
 Evaluates the physics engine, solution thermodynamics, and contact analysis
-on bound co-crystal poses across 6 standardized reference complexes from PepBDB / RCSB PDB:
+on bound co-crystal poses across 14 standardized reference complexes from PepBDB / RCSB PDB:
 1. 1AWR: Cyclophilin A + HAGPIA (6 aa)
-2. 1CKA: c-Crk N-SH3 + PPPALPPKK (9 aa resolved-core proxy for 10-mer C3G)
-3. 1DKX: DnaK Chaperone SBD (apo, 25°C) + NRLLLTG (7 aa)
-4. 1ER8: Endothiapepsin + H-77 peptidomimetic (8 aa)
-5. 1SSH: Yeast YFR024C-A SH3 + Sla1 peptide (11 aa)
-6. 1YCR: MDM2 Oncoprotein + p53(17-29) (13 aa; 15-mer ITC proxy, 35°C)
-
-Note: This benchmark verifies physical force-field rescoring and rank-order correlation
-on known bound co-crystal geometries. It is an exploratory physical consistency sanity check
-(N=4 descriptive pose-affinity comparisons including structural proxies), not a prospective
-blind docking screen or calibrated absolute Kd predictor.
+2. 1B07: Amphiphysin SH3 + EVPGPVPPRR (10 aa)
+3. 1BBZ: c-Abl SH3 Domain + APSYSPPPPP (10 aa)
+4. 1BE9: PSD-95 PDZ3 Domain + KQTSV (5 aa)
+5. 1CKA: c-Crk N-SH3 + PPPALPPKK (9 aa resolved-core proxy for 10-mer C3G)
+6. 1DKX: DnaK Chaperone SBD (apo, 25°C) + NRLLLTG (7 aa)
+7. 1ER8: Endothiapepsin + H-77 peptidomimetic (8 aa)
+8. 1GBQ: Grb2 N-SH3 Domain + VPPPVPPRRR (10 aa)
+9. 1LCJ: Lck SH2 Domain + EPQEEIPIYL (10 aa)
+10. 1PRL: c-Src SH3 Domain + AFAPPLPRR (9 aa)
+11. 1SEM: Sem-5 / Grb2 SH3 + PPPVPPR (7 aa)
+12. 1SSH: Yeast YFR024C-A SH3 + Sla1 peptide (11 aa)
+13. 1VJ6: INAD PDZ3 Domain + YLVTSV (6 aa)
+14. 1YCR: MDM2 Oncoprotein + p53(17-29) (13 aa; 15-mer ITC proxy, 35°C)
 """
 
 import sys
@@ -314,8 +317,8 @@ def run_all_benchmarks(benchmarks_dir: Path = Path("benchmarks"), out_csv: Path 
         rmse = float(np.sqrt(np.mean((pred_arr - exp_arr) ** 2)))
         mae = float(np.mean(np.abs(pred_arr - exp_arr)))
 
-        print("\nDescriptive Statistics for Four Retrospective Pose–Affinity Comparisons (Including Structural Proxies):")
-        print("  • Note: n=4 exploratory sample with structural proxies (1CKA 9-mer vs 10-mer; 1YCR 13-mer vs 15-mer at 35°C).")
+        print(f"\nDescriptive Statistics for {len(valid)} Retrospective Pose–Affinity Comparisons (Including Structural Proxies):")
+        print(f"  • Note: n={len(valid)} benchmark pairs with structural proxies (1CKA 9-mer vs 10-mer; 1YCR 13-mer vs 15-mer at 35°C).")
         print("    Descriptive metrics only; does not establish independent predictive validation.")
         print(f"  • Matched / Proxy Pairs:     {len(valid)} ({', '.join(r['pdb_id'] for r in valid)})")
         print(f"  • Physical Force-Field:      MAE = {mae:.2f} kcal/mol, RMSE = {rmse:.2f} kcal/mol, r = {r_val:.3f} (p = {p_val:.4f}), ρ = {rho_val:.3f}")

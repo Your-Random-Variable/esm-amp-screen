@@ -1,5 +1,5 @@
 """
-Peptide PDBQT Preparation Module.
+Peptide 3D Preparation Module.
 Freezes peptide backbone dihedrals (phi, psi, omega) in the ESM 3D conformation
 while keeping functional sidechain torsions fully flexible.
 """
