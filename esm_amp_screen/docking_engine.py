@@ -230,11 +230,14 @@ def dock_single_peptide_geometric(
         groove_shifts = [-0.5, 0.0, 0.5]
         base_rotations = [np.eye(3)]
     else:
-        # Full global pocket surface search
-        # Determine peptide envelope radius (75th percentile of atom distances from peptide center)
-        pep_rad = float(np.percentile(np.linalg.norm(pep_p0, axis=1), 75)) if len(pep_p0) > 0 else 6.0
-        min_depth = max(4.0, pep_rad - 1.5)
-        max_depth = min_depth + 6.0
+        # Cylindrical cross-sectional radius perpendicular to longest peptide length axis
+        proj_long = pep_p0 @ u_long
+        proj_perp = pep_p0 - np.outer(proj_long, u_long)
+        perp_dists = np.linalg.norm(proj_perp, axis=1)
+        pep_cyl_rad = float(np.percentile(perp_dists, 75)) if len(perp_dists) > 0 else 4.0
+        pep_cyl_rad = min(6.0, max(2.5, pep_cyl_rad))
+        min_depth = max(1.5, pep_cyl_rad - 1.5)
+        max_depth = pep_cyl_rad + 3.0
         depth_offsets = np.linspace(min_depth, max_depth, num_depths)
         roll_angles = np.linspace(0, 2 * np.pi, max(8, num_rotations // 2), endpoint=False)
         groove_shifts = [-2.5, 0.0, 2.5]

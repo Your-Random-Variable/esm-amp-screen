@@ -237,12 +237,17 @@ class MLPeptideScorer:
     computes an uncalibrated heuristic consensus score based on explicit physics and docking terms.
     """
 
-    def __init__(self, model_path: Optional[Path] = None):
+    def __init__(
+        self,
+        model_path: Optional[Path] = None,
+        consensus_weights: Tuple[float, float, float] = (0.35, 0.35, 0.30)
+    ):
         self.rf_model = None
         self.gb_model = None
         self.et_model = None
         self.feature_names = []
         self.is_calibrated = False
+        self.consensus_weights = consensus_weights
 
         if model_path and Path(model_path).exists():
             self._load_model(Path(model_path))
@@ -294,12 +299,13 @@ class MLPeptideScorer:
         **kwargs
     ) -> float:
         """Balanced consensus scoring combining docking, explicit physics, and solution thermodynamics."""
-        dock_val = docking_energy if docking_energy is not None else kwargs.get("docking_affinity", kwargs.get("docking_energy", kwargs.get("vina_affinity", -8.0)))
+        dock_val = docking_energy if docking_energy is not None else kwargs.get("docking_affinity", kwargs.get("docking_energy", -8.0))
         dock_norm = -float(dock_val)
         haddock_norm = -float(haddock_score) / 10.0
         sol_dg = sol_delta_g if sol_delta_g is not None else float(dock_val)
         ml_pkd = max(3.0, min(12.0, -sol_dg / RT_LN10))
-        return float((0.35 * dock_norm) + (0.35 * haddock_norm) + (0.30 * ml_pkd))
+        w1, w2, w3 = self.consensus_weights
+        return float((w1 * dock_norm) + (w2 * haddock_norm) + (w3 * ml_pkd))
 
     def score_complex(
         self,
@@ -418,9 +424,10 @@ class MLPeptideScorer:
         dock_norm = -float(dock_energy)
         haddock_norm = -float(physics["haddock_score"]) / 10.0
         ml_norm = float(ml_pkd)
-        consensus_score = (0.35 * dock_norm) + (0.35 * haddock_norm) + (0.30 * ml_norm)
+        w1, w2, w3 = self.consensus_weights
+        consensus_score = (w1 * dock_norm) + (w2 * haddock_norm) + (w3 * ml_norm)
 
-        return {
+        res_dict = {
             "haddock_score": physics["haddock_score"],
             "e_vdw": physics["e_vdw"],
             "e_elec": physics["e_elec"],
@@ -434,4 +441,63 @@ class MLPeptideScorer:
             "confidence_score": round(float(confidence), 1),
             "consensus_score": round(float(consensus_score), 2),
             "is_calibrated": self.is_calibrated
+        }
+        res_dict["interpretation"] = self.interpret_scoring_result(res_dict)
+        return res_dict
+
+    @staticmethod
+    def interpret_scoring_result(result: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Translates raw and calibrated scores into actionable biological and biophysical interpretations:
+        - Affinity verdict (pKd, Delta G, and Kd range)
+        - HADDOCK interaction strength (enthalpy and contact quality)
+        - Interface burial & shape complementarity (BSA in Angstrom^2)
+        - Overall lead optimization recommendation
+        """
+        pkd = result.get("ml_pkd", 0.0)
+        kd_str = str(result.get("ml_kd", "N/A"))
+        hscore = result.get("haddock_score", 0.0)
+        bsa = result.get("bsa", 0.0)
+
+        # 1. Affinity Interpretation
+        if pkd >= 8.0:
+            aff_verdict = f"High Affinity Potent Lead (Kd: {kd_str}, pKd >= 8.0). Sub-10 nM or nanomolar binding."
+        elif pkd >= 6.5:
+            aff_verdict = f"Moderate Affinity Candidate (Kd: {kd_str}, pKd 6.5-8.0). Suitable for lead optimization."
+        elif pkd >= 5.0:
+            aff_verdict = f"Micromolar Binder (Kd: {kd_str}, pKd 5.0-6.5). Requires hotspot mutagenesis."
+        else:
+            aff_verdict = f"Weak / Inactive (Kd: {kd_str}, pKd < 5.0). Exceeds micromolar threshold."
+
+        # 2. HADDOCK Interfacial Enthalpy
+        if hscore <= -50.0:
+            had_verdict = f"Strong Enthalpic Packing ({hscore:.1f}). Robust vdW well and electrostatic complementarity."
+        elif hscore <= -30.0:
+            had_verdict = f"Favorable Interface ({hscore:.1f}). Standard productive peptide-protein contact."
+        elif hscore <= -15.0:
+            had_verdict = f"Marginal Interface ({hscore:.1f}). Weak interaction prone to dissociation."
+        else:
+            had_verdict = f"Unfavorable Contact ({hscore:.1f}). Steric repulsion or insufficient contacts."
+
+        # 3. Buried Surface Area (BSA)
+        if bsa >= 1200.0:
+            bsa_verdict = f"Extensive Interface ({bsa:.1f} Å²). Deep pocket occupancy and high shape complementarity."
+        elif bsa >= 800.0:
+            bsa_verdict = f"Standard Interface ({bsa:.1f} Å²). Typical peptide groove binding."
+        else:
+            bsa_verdict = f"Shallow / Partial Contact ({bsa:.1f} Å²). Susceptible to solvent competition."
+
+        # 4. Recommendation
+        if pkd >= 7.0 and hscore <= -35.0 and bsa >= 800.0:
+            rec = "Priority Hit: High affinity, robust HADDOCK enthalpy, and extensive buried interface."
+        elif pkd >= 6.0 and hscore <= -25.0:
+            rec = "Viable Candidate: Good affinity baseline; recommend in silico alanine scan or lead optimization."
+        else:
+            rec = "Low Priority: Marginal affinity or weak surface contacts."
+
+        return {
+            "affinity_verdict": aff_verdict,
+            "haddock_verdict": had_verdict,
+            "bsa_verdict": bsa_verdict,
+            "overall_recommendation": rec
         }

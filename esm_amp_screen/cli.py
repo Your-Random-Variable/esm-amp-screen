@@ -729,7 +729,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         print("\n" + "="*145)
         print("            STAGE 3: HADDOCK PHYSICS & CONSENSUS LEADERBOARD")
         print("="*145)
-        header = f"{'Rank':<5} {'Peptide ID':<16} {'Mode':<6} {'Dock ΔG':<9} {'HADDOCK':<9} {'BSA (Å²)':<9} {'Cons. ΔG':<9} {'Pred Kd':<9} {'Sol. Kd':<10} {'Toxicity':<14} {'Consensus':<10}"
+        header = f"{'Rank':<5} {'Peptide ID':<16} {'Mode':<6} {'Dock ΔG':<9} {'HADDOCK':<9} {'BSA (Å²)':<9} {'ML ΔG':<9} {'Pred Kd':<9} {'Sol. Kd':<10} {'Toxicity':<14} {'Consensus':<10}"
         print(header)
         print("-" * len(header))
         for row in refined_summary_data[:stage3_n]:
