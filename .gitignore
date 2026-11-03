@@ -70,10 +70,18 @@ gnina
 *.temp.pdbqt
 *.log
 
-# Loose scratch PDBs
+# Loose scratch PDBs and screening runs
 *.pdb.temp.*
 test_res_R.pdb
 test_*.pdb
+bama_*.pdb
+ompu_*.pdb
+lptd_*.pdb
+lptde_*.pdb
+docking_*/
+test_*/
+pocket_analysis/
+screen_multitarget_amps.py
 1CKA.pdb
 1D9O.pdb
 1DKX.pdb
