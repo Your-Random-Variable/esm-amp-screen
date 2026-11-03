@@ -46,8 +46,10 @@ PKA_VALUES = {
     "Y":  10.1,       # Tyrosine phenol (OH)
 }
 
-# Sets of positively and negatively charged residue names at pH 7
-_POS_RESIDUES = {"ARG", "LYS", "HIS"}
+# Sets of positively and negatively charged residue names at pH 7.4
+# HIS is excluded: at pH 7.4 (pKa ~6.0), HIS is ~96% neutral;
+# cationic HIP (doubly protonated) is handled separately in _pos_sb_atoms.
+_POS_RESIDUES = {"ARG", "LYS"}
 _NEG_RESIDUES = {"ASP", "GLU"}
 
 # Hydrophobic residues for contact analysis
@@ -343,7 +345,7 @@ def _compute_pairwise_contacts(
                 continue
 
             # ── 2. Salt Bridge (Barlow & Thornton standard: 2.4 A <= d <= 4.0 A) ──
-            if 2.4 <= dist <= salt_bridge_dist:
+            elif 2.4 <= dist <= salt_bridge_dist:
                 lig_is_pos = lres in _pos_sb_atoms and latom_name in _pos_sb_atoms.get(lres, set())
                 lig_is_neg = lres in _neg_sb_atoms and latom_name in _neg_sb_atoms.get(lres, set())
                 rec_is_pos = rres in _pos_sb_atoms and ratom_name in _pos_sb_atoms.get(rres, set())
@@ -357,7 +359,8 @@ def _compute_pairwise_contacts(
                     )
 
             # ── 3. Hydrogen Bond (donor-acceptor heavy atoms: 2.4 A <= d <= 3.5 A) ──
-            if 2.4 <= dist <= hbond_dist:
+            # Uses elif to ensure salt bridge pairs are not double-counted as H-bonds.
+            elif 2.4 <= dist <= hbond_dist:
                 if lelem in _polar_elements and relem in _polar_elements:
                     l_is_carbonyl_o = (latom_name == "O" and lelem == "O")
                     r_is_carbonyl_o = (ratom_name == "O" and relem == "O")
@@ -370,6 +373,7 @@ def _compute_pairwise_contacts(
                 rec_hydrophobic = rres in _HYDROPHOBIC_RESIDUES and relem == "C"
                 if lig_hydrophobic and rec_hydrophobic:
                     num_hydrophobic += 1
+
 
     return {
         "salt_bridges": num_salt_bridges,

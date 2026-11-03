@@ -26,7 +26,7 @@ from esm_amp_screen.amp_analyzer import (
     clean_sequence
 )
 
-# Complete set of 4 biological elements -> 10 unique unordered pairs
+# Complete set of 4 biological elements -> 10 unique unordered pairs (including S-S for disulfide bonds)
 ELEMENTS = ["C", "N", "O", "S"]
 ELEMENT_PAIRS = [
     ("C", "C"), ("C", "N"), ("C", "O"), ("C", "S"),
@@ -36,8 +36,8 @@ ELEMENT_PAIRS = [
 
 # Physical constants for pKd <-> Delta G conversion (Gibbs-Helmholtz / van 't Hoff)
 R_GAS_KCAL = 0.001987204   # Gas constant R in kcal / (mol * K)
-TEMP_KELVIN = 298.15       # Standard physiological temperature (25 °C)
-RT_LN10 = R_GAS_KCAL * TEMP_KELVIN * np.log(10.0)  # ~ 1.3638 kcal/mol per pKd unit
+TEMP_KELVIN = 300.0        # Calibration temperature (300 K, ~27 °C; matches training dataset)
+RT_LN10 = R_GAS_KCAL * TEMP_KELVIN * np.log(10.0)  # ~ 1.3727 kcal/mol per pKd unit at 300 K
 
 # Complete 56-Dimensional Physical Chemistry & Structural Interface Feature Space
 FEATURE_NAMES = []
@@ -298,14 +298,20 @@ class MLPeptideScorer:
         sol_delta_g: Optional[float] = None,
         **kwargs
     ) -> float:
-        """Balanced consensus scoring combining docking, explicit physics, and solution thermodynamics."""
+        """Unit-normalized consensus score combining docking, HADDOCK, and ML terms.
+        Each component is mapped to [0, 10] scale before weighting — prevents
+        HADDOCK spikes (e.g. +790 for clashing poses) from dominating the score.
+        """
         dock_val = docking_energy if docking_energy is not None else kwargs.get("docking_affinity", kwargs.get("docking_energy", -8.0))
-        dock_norm = -float(dock_val)
-        haddock_norm = -float(haddock_score) / 10.0
         sol_dg = sol_delta_g if sol_delta_g is not None else float(dock_val)
         ml_pkd = max(3.0, min(12.0, -sol_dg / RT_LN10))
+
+        dock_term = float(np.clip(-float(dock_val), 0.0, 15.0)) / 15.0 * 10.0
+        haddock_term = float(np.clip(-float(haddock_score), -200.0, 50.0) + 200.0) / 250.0 * 10.0
+        ml_term = float(np.clip(ml_pkd - 3.0, 0.0, 9.0)) / 9.0 * 10.0
+
         w1, w2, w3 = self.consensus_weights
-        return float((w1 * dock_norm) + (w2 * haddock_norm) + (w3 * ml_pkd))
+        return float((w1 * dock_term) + (w2 * haddock_term) + (w3 * ml_term))
 
     def score_complex(
         self,
@@ -420,12 +426,17 @@ class MLPeptideScorer:
         else:
             kd_str = f"{kd_molar * 1e3:.1f} mM"
 
-        # Unified Balanced Consensus Score (combining geometric docking, HADDOCK, and solution thermodynamics)
-        dock_norm = -float(dock_energy)
-        haddock_norm = -float(physics["haddock_score"]) / 10.0
-        ml_norm = float(ml_pkd)
+        # Unit-Normalized Balanced Consensus Score
+        # Each component is mapped to a [0, 10] scale before weighting to prevent
+        # any single term from dominating due to scale differences:
+        #   dock_term:    docking affinity [-15, 0] kcal/mol → [10, 0]  (lower = better)
+        #   haddock_term: HADDOCK score [-50, +200] → [10, 0]  (capped: >200 = poor)
+        #   ml_term:      pKd [3, 12] → [0, 10]               (higher pKd = better)
+        dock_term = float(np.clip(-dock_energy, 0.0, 15.0)) / 15.0 * 10.0
+        haddock_term = float(np.clip(-physics["haddock_score"], -200.0, 50.0) + 200.0) / 250.0 * 10.0
+        ml_term = float(np.clip(ml_pkd - 3.0, 0.0, 9.0)) / 9.0 * 10.0
         w1, w2, w3 = self.consensus_weights
-        consensus_score = (w1 * dock_norm) + (w2 * haddock_norm) + (w3 * ml_norm)
+        consensus_score = (w1 * dock_term) + (w2 * haddock_term) + (w3 * ml_term)
 
         res_dict = {
             "haddock_score": physics["haddock_score"],
