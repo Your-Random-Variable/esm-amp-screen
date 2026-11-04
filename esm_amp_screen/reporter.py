@@ -18,11 +18,11 @@ from esm_amp_screen.peptide_prep import create_docked_pristine_pdb
 from esm_amp_screen.html_reporter import generate_interactive_html_report
 
 
-def estimate_kd(affinity_kcal_mol: float, temp_kelvin: float = 298.15) -> str:
+def estimate_kd(affinity_kcal_mol: float, temp_kelvin: float = 300.0) -> str:
     """
     Estimates dissociation constant (Kd) from Gibbs free energy:
     ΔG = R * T * ln(Kd)  =>  Kd = exp(ΔG / (R * T))
-    R = 1.9872e-3 kcal/(mol*K)
+    R = 1.9872e-3 kcal/(mol*K); T = 300 K (calibration temperature)
     """
     if affinity_kcal_mol >= 0:
         return "> 1.0 mM"
@@ -217,11 +217,14 @@ def export_screening_report(
     ensure_dir(out_dir)
     complex_dir = ensure_dir(out_dir / "top_complexes")
 
-    # Sort by Consensus Score if present in any hit (ensuring rescored hits precede unrescored hits)
+    # Sort by Consensus Score (descending = higher is better) if present,
+    # with rescored hits always ranked above unrescored hits.
     if summary_data and any("consensus_score" in x for x in summary_data):
         def sort_key(x):
             has_cs = "consensus_score" in x and x["consensus_score"] is not None
-            return (1 if has_cs else 0, x.get("consensus_score", -999999), x.get("composite_score", -999))
+            # (has_cs_flag, consensus_score, composite_score) — all descending via reverse=True
+            cs = x.get("consensus_score", -999999) if has_cs else -999999
+            return (1 if has_cs else 0, cs, x.get("composite_score", -999))
         summary_data.sort(key=sort_key, reverse=True)
     else:
         summary_data.sort(key=lambda x: (x.get("composite_score", -999), -x.get("affinity", 0)), reverse=True)

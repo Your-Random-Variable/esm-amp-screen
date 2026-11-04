@@ -168,7 +168,14 @@ def dock_single_peptide_geometric(
         axis_len = np.linalg.norm(axis)
         if axis_len < 1e-6:
             dot_prod = np.dot(u_unit, v_unit)
-            return np.eye(3) if dot_prod > 0 else -np.eye(3)
+            if dot_prod > 0:
+                return np.eye(3)
+            # Antiparallel case: rotate 180° around any perpendicular axis
+            # Pick a perpendicular to u_unit that is not degenerate
+            perp = np.array([1.0, 0.0, 0.0]) if abs(u_unit[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+            perp_axis = np.cross(u_unit, perp)
+            perp_axis /= np.linalg.norm(perp_axis)
+            return Rotation.from_rotvec(perp_axis * np.pi).as_matrix()
         axis = axis / axis_len
         angle = np.arccos(np.clip(np.dot(u_unit, v_unit), -1.0, 1.0))
         return Rotation.from_rotvec(axis * angle).as_matrix()
@@ -404,10 +411,22 @@ def dock_single_peptide_geometric(
     st_complex.write_minimal_pdb(str(complex_out_pdb))
 
     # Binding affinity proxy (scaled negative interaction energy into standard kcal/mol range)
-    # Calibrated so that typical good peptide poses land in -7 to -12 kcal/mol range
+    # Calibrated so that typical good peptide poses land in -7 to -12 kcal/mol range.
+    # Poses with raw_score > 60 are clash-dominated and are hard-floored at -3.0 kcal/mol
+    # (the minimum ceiling value) to distinguish them from genuine weak binders.
     raw_best_score = top_modes[0]["score"]
-    estimated_affinity = round(float(np.clip(-6.0 + (raw_best_score / 20.0), -15.0, -3.0)), 2)
-    scores_list = [round(float(np.clip(-6.0 + (m["score"] / 20.0), -15.0, -3.0)), 2) for m in top_modes]
+    if raw_best_score > 60.0:
+        # Clash-rejected pose: hard floor, do not apply continuous calibration
+        estimated_affinity = -3.0
+    else:
+        estimated_affinity = round(float(np.clip(-6.0 + (raw_best_score / 20.0), -15.0, -3.0)), 2)
+
+    def _score_to_affinity(raw: float) -> float:
+        if raw > 60.0:
+            return -3.0
+        return round(float(np.clip(-6.0 + (raw / 20.0), -15.0, -3.0)), 2)
+
+    scores_list = [_score_to_affinity(m["score"]) for m in top_modes]
 
     return {
         "pep_id": pep_id,

@@ -47,9 +47,15 @@ def create_docked_pristine_pdb(orig_pdb: Path, docked_pose_pdb: Path, out_pdb: P
             d_pose = cdist(p_pose, p_pose)
 
             # Match each orig atom to pose atom by sorted internal distance fingerprint
+            # d_orig[i] sorted = fingerprint of orig atom i (shape: N)
+            # np.sort(d_pose, axis=1)[j] = fingerprint of pose atom j (shape: N)
+            # L1 distance between fingerprints gives a unique bijection cost.
+            sorted_d_orig = np.sort(d_orig, axis=1)   # shape: N x N (each row = sorted fingerprint)
+            sorted_d_pose = np.sort(d_pose, axis=1)   # shape: N x N
             mapping = []
             for i in range(len(p_orig)):
-                diffs = np.abs(np.sort(d_orig[i]) - np.sort(d_pose, axis=1)).sum(axis=1)
+                # Compare fingerprint of orig atom i against all pose atoms
+                diffs = np.abs(sorted_d_orig[i] - sorted_d_pose).sum(axis=1)  # shape: N
                 mapping.append(int(np.argmin(diffs)))
 
             # If mapping is a valid bijection (no duplicates)

@@ -54,11 +54,12 @@ def clean_receptor_pdb(
                     del chain[i]
 
     # If specific receptor chain requested, filter out extraneous chains (e.g. bound co-crystal peptides)
+    # gemmi Models do not support del model[chain_name] — use remove_chain() method instead.
     if receptor_chain:
         for model in doc:
             chains_to_del = [chain.name for chain in model if chain.name != receptor_chain]
             for c_name in chains_to_del:
-                del model[c_name]
+                model.remove_chain(c_name)
     
     doc.write_minimal_pdb(str(cleaned_pdb))
     logger.info(f"Cleaned receptor saved to {cleaned_pdb.name}")

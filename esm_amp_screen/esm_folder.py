@@ -45,6 +45,23 @@ def predict_secondary_structure_propensity(sequence: str) -> str:
     if not seq:
         return "helix"
 
+    # 0. Cyclotide / Knottin detection (Cyclic Cystine Knot fold)
+    # >= 4 Cys in a short peptide (<= 50 aa) is a hallmark of CCK / knottin scaffolds.
+    # The true 3D fold is determined by 3 interlocked disulfide bonds — ESMFold can model
+    # this, but the biophysical conformer builder CANNOT (no disulfide-bond geometry).
+    # Return 'extended' as the least misleading available approximation, and emit a
+    # prominent warning so users know the CCK fold is not being accurately built.
+    cys_count = seq.count('C')
+    if cys_count >= 4 and len(seq) <= 50:
+        logger.warning(
+            f"[CYCLOTIDE WARNING] Sequence contains {cys_count} Cys residues in {len(seq)} aa "
+            f"— likely a Cyclic Cystine Knot / Knottin scaffold. "
+            f"The biophysical conformer builder cannot model disulfide-bonded CCK geometry. "
+            f"Using 'extended' as the least-distorting approximation. "
+            f"For accurate docking, provide a template structure (e.g. PDB 2MH1) or use ESMFold API."
+        )
+        return "extended"
+
     # 1. Polyproline II check (Proline >= 20%)
     pro_fraction = seq.count('P') / len(seq)
     if pro_fraction >= 0.20:
@@ -79,7 +96,7 @@ def query_esmfold_api(sequence: str, hf_token: Optional[str] = None) -> Optional
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-        "User-Agent": "ESM-AMP-Screen/1.1.1"
+        "User-Agent": "ESM-AMP-Screen/1.5.0"
     }
     payload = json.dumps({"inputs": sequence}).encode("utf-8")
     req = urllib.request.Request(api_url, data=payload, headers=headers, method="POST")
