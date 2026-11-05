@@ -904,6 +904,35 @@ def main():
     p_bench.add_argument("--out-superimposed", "-o", help="Path to save receptor-superimposed complex PDB")
     p_bench.set_defaults(func=run_benchmark_cli)
 
+    # Command: alphafold (fetch AFDB targets, prepare AF-Multimer/AF3 inputs, or score AF complexes)
+    p_af = subparsers.add_parser(
+        "alphafold",
+        help="AlphaFold suite: fetch AFDB target structures, prepare AF-Multimer / AF3 inputs, or score co-folded complexes"
+    )
+    p_af_sub = p_af.add_subparsers(dest="af_subcommand", help="AlphaFold action")
+
+    # alphafold fetch
+    p_af_fetch = p_af_sub.add_parser("fetch", help="Fetch predicted receptor structure from AlphaFold Database (AFDB)")
+    p_af_fetch.add_argument("--uniprot", "-u", required=True, help="UniProt accession ID (e.g. Q9KPW0)")
+    p_af_fetch.add_argument("--output", "-o", help="Output PDB file path")
+    p_af_fetch.add_argument("--no-clean", action="store_true", default=False, help="Skip receptor cleaning and chain standardization")
+
+    # alphafold prep
+    p_af_prep = p_af_sub.add_parser("prep", aliases=["prep-multimer"], help="Prepare ColabFold and AlphaFold 3 inputs for unknown target + peptide")
+    p_af_prep.add_argument("--target", "-t", required=True, help="Target sequence, FASTA file, or UniProt ID")
+    p_af_prep.add_argument("--peptide", "-p", required=True, help="Peptide sequence or FASTA file")
+    p_af_prep.add_argument("--name", "-n", default="complex", help="Job/complex name (default: complex)")
+    p_af_prep.add_argument("--output", "-o", help="Output directory")
+
+    # alphafold score
+    p_af_score = p_af_sub.add_parser("score", help="Score a co-folded AlphaFold complex structure (pLDDT, physics, ML affinity, toxicity)")
+    p_af_score.add_argument("--complex", "-c", required=True, help="Co-folded complex PDB/CIF file")
+    p_af_score.add_argument("--target-chain", default="A", help="Target receptor chain ID (default: A)")
+    p_af_score.add_argument("--pep-chain", default="B", help="Peptide ligand chain ID (default: B)")
+    p_af_score.add_argument("--output", "-o", help="Optional CSV report output path")
+
+    p_af.set_defaults(func=run_alphafold_cli)
+
     args = parser.parse_args()
     args.func(args)
 
@@ -1362,6 +1391,130 @@ def run_membrane_screening_cli(args: argparse.Namespace) -> None:
     print(f"  • Tier 3 (Weak / Marginal Activity):              {t3_count} ({t3_count/n_rec*100:.1f}%)")
     print(f"  • Tier 4 (Inactive / Non-Membrane Active):        {t4_count} ({t4_count/n_rec*100:.1f}%)")
     print(f"\n[OK] Complete results exported to: {csv_out}\n")
+
+
+
+def run_alphafold_cli(args: argparse.Namespace) -> None:
+    """CLI runner for AlphaFold integration suite (fetch AFDB targets, prep AF-Multimer/AF3, score complexes)."""
+    subcmd = getattr(args, "af_subcommand", None)
+    if not subcmd:
+        print("Please specify an AlphaFold subcommand: fetch, prep, or score.")
+        print("Run 'esm-amp-screen alphafold --help' for usage.")
+        return
+
+    from esm_amp_screen.alphafold import (
+        fetch_alphafold_target,
+        fetch_uniprot_sequence,
+        prepare_alphafold_multimer_inputs,
+        score_alphafold_complex
+    )
+
+    if subcmd == "fetch":
+        print("\n" + "=" * 90)
+        print(f"      ALPHAFOLD DATABASE (AFDB): FETCH TARGET RECEPTOR ({args.uniprot.upper()})")
+        print("=" * 90 + "\n")
+        res = fetch_alphafold_target(
+            uniprot_id=args.uniprot,
+            out_pdb=Path(args.output) if args.output else None,
+            clean=not getattr(args, "no_clean", False)
+        )
+        print(f"  • UniProt Accession : {res['uniprot_id']}")
+        print(f"  • Organism          : {res['organism']}")
+        print(f"  • Protein Length    : {res['length']} residues")
+        print(f"  • Global pLDDT      : {res['global_plddt']:.1f} / 100")
+        print(f"  • Confident (≥70)   : {res['confident_residues_pct']:.1f}% of residues")
+        print(f"  • Saved Structure   : {res['pdb_path']}")
+        print("\n[OK] AlphaFold target structure ready for pocket profiling and docking.\n")
+
+    elif subcmd in ("prep", "prep-multimer"):
+        print("\n" + "=" * 100)
+        print("      ALPHAFOLD-MULTIMER & ALPHAFOLD 3: CO-FOLDING INPUT GENERATOR")
+        print("=" * 100 + "\n")
+        # Resolve target sequence
+        target_input = args.target.strip()
+        t_seq = ""
+        t_name = "Target"
+        if Path(target_input).is_file():
+            fasta = read_fasta(Path(target_input))
+            t_name = list(fasta.keys())[0]
+            t_seq = list(fasta.values())[0]
+        elif len(target_input) <= 10 and target_input.isalnum() and not all(c in "ACDEFGHIKLMNPQRSTVWY" for c in target_input):
+            # Treat as UniProt ID
+            hdr, t_seq = fetch_uniprot_sequence(target_input)
+            t_name = target_input
+        else:
+            t_seq = target_input
+
+        # Resolve peptide sequence
+        pep_input = args.peptide.strip()
+        p_seq = ""
+        p_name = "Peptide"
+        if Path(pep_input).is_file():
+            fasta = read_fasta(Path(pep_input))
+            p_name = list(fasta.keys())[0]
+            p_seq = list(fasta.values())[0]
+        else:
+            p_seq = pep_input
+
+        job_name = getattr(args, "name", "complex")
+        out_dir = Path(args.output or f"af_multimer_{job_name}").resolve()
+        inputs = prepare_alphafold_multimer_inputs(
+            target_seq=t_seq,
+            peptide_seq=p_seq,
+            job_name=job_name,
+            out_dir=out_dir,
+            target_name=t_name,
+            peptide_name=p_name
+        )
+
+        print(f"  • Target Sequence   : {len(t_seq)} residues ({t_name})")
+        print(f"  • Peptide Sequence  : {len(p_seq)} residues ({p_name})")
+        print(f"  • ColabFold FASTA   : {inputs['colabfold_fasta']}")
+        print(f"  • AlphaFold 3 JSON  : {inputs['af3_json']}")
+        print(f"  • Execution Script  : {inputs['runner_script']}")
+        print("\nNext Steps:")
+        print("  1. To run on AlphaFold 3 Server: Upload the JSON to https://alphafoldserver.com")
+        print(f"  2. To run with ColabFold: Execute 'bash {inputs['runner_script'].name}' or upload FASTA to Google ColabFold")
+        print("  3. Once folded, score the complex with:")
+        print(f"     esm-amp-screen alphafold score --complex <predicted_complex.pdb> --target-chain A --pep-chain B\n")
+
+    elif subcmd == "score":
+        import pandas as pd
+        print("\n" + "=" * 115)
+        print("      ALPHAFOLD CO-FOLDED COMPLEX: STRUCTURAL QUALITY & MULTI-PARAMETRIC SCORING")
+        print("=" * 115 + "\n")
+        cpx_path = Path(args.complex).resolve()
+        res = score_alphafold_complex(
+            complex_pdb=cpx_path,
+            target_chain=getattr(args, "target_chain", "A"),
+            peptide_chain=getattr(args, "pep_chain", "B")
+        )
+
+        print(f"Complex Structure: {cpx_path.name}")
+        print(f"Peptide Sequence : {res['peptide_sequence']} ({res['peptide_length']} aa)")
+        print(f"Overall Decision : {res['decision']} {res['star_rating']}\n")
+
+        hdr = f"{'Metric':<30} {'Value':<20} {'Clinical / Biological Interpretation'}"
+        print(hdr)
+        print("-" * len(hdr))
+        print(f"{'Interface Confidence (pLDDT)':<30} {res['interface_plddt']:<20.1f} {'> 75.0 indicates high-confidence contact interface'}")
+        print(f"{'Predicted ML Affinity (ΔG)':<30} {res['ml_delta_g']:<20.2f} kcal/mol (More negative = tighter binding)")
+        print(f"{'Estimated Solution Kd':<30} {res['ml_kd']:<20} {'Nanomolar potency threshold (< 1.0 µM)'}")
+        print(f"{'Buried Surface Area (BSA)':<30} {res['bsa_angstrom2']:<20.1f} Å² (Intermolecular interface area)")
+        print(f"{'HADDOCK Physics Score':<30} {res['haddock_score']:<20.2f} {'Explicit van der Waals + Electrostatics + Solvation'}")
+        contacts_str = f"{res['hbonds']} HB / {res['salt_bridges']} SB / {res['hydrophobic_contacts']} HP"
+        print(f"{'Intermolecular Contacts':<30} {contacts_str:<20} {'Direct non-covalent stabilizing bonds'}")
+        clash_str = f"{res['clashes']} ⚠ (Clash Penalty)" if res['clashes'] > 0 else "0 (Sterically Compatible)"
+        print(f"{'Steric Clashes':<30} {clash_str:<20} {'Steric clash check'}")
+        print(f"{'Net Charge at pH 7.4':<30} {res['net_charge']:<+20.1f} {res['toxicity_verdict']}")
+        print(f"{'Hemolysis Risk (RBC Lysis)':<30} {res['hemolysis_risk']:<20} {'Based on mean hydrophobicity and amphipathicity'}")
+        print(f"{'Boman Index (Serum Trapping)':<30} {res['boman_index']:<20.2f} kcal/mol (< 2.48 indicates no serum trapping)")
+        print("-" * len(hdr))
+
+        if getattr(args, "output", None):
+            out_csv = Path(args.output).resolve()
+            pd.DataFrame([res]).to_csv(out_csv, index=False)
+            print(f"\n[OK] Detailed evaluation saved to: {out_csv}\n")
 
 
 if __name__ == "__main__":

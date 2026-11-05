@@ -345,7 +345,8 @@ def _compute_pairwise_contacts(
                 continue
 
             # ── 2. Salt Bridge (Barlow & Thornton standard: 2.4 A <= d <= 4.0 A) ──
-            elif 2.4 <= dist <= salt_bridge_dist:
+            is_salt = False
+            if 2.4 <= dist <= salt_bridge_dist:
                 lig_is_pos = lres in _pos_sb_atoms and latom_name in _pos_sb_atoms.get(lres, set())
                 lig_is_neg = lres in _neg_sb_atoms and latom_name in _neg_sb_atoms.get(lres, set())
                 rec_is_pos = rres in _pos_sb_atoms and ratom_name in _pos_sb_atoms.get(rres, set())
@@ -359,8 +360,8 @@ def _compute_pairwise_contacts(
                     )
 
             # ── 3. Hydrogen Bond (donor-acceptor heavy atoms: 2.4 A <= d <= 3.5 A) ──
-            # Uses elif to ensure salt bridge pairs are not double-counted as H-bonds.
-            elif 2.4 <= dist <= hbond_dist:
+            # Salt bridge pairs are not double-counted as H-bonds.
+            if not is_salt and 2.4 <= dist <= hbond_dist:
                 if lelem in _polar_elements and relem in _polar_elements:
                     l_is_carbonyl_o = (latom_name == "O" and lelem == "O")
                     r_is_carbonyl_o = (ratom_name == "O" and relem == "O")
