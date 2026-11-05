@@ -260,12 +260,19 @@ def run_pipeline(args: argparse.Namespace) -> None:
     rec_pdb_path = out_dir / "target_receptor.pdb"
     if Path(receptor_arg).exists():
         rec_pdb_path = clean_receptor_pdb(Path(receptor_arg), rec_pdb_path, receptor_chain=rec_chain)
+    elif receptor_arg.upper().startswith("AF:") or (len(receptor_arg) in (6, 10) and receptor_arg.isalnum()):
+        # AlphaFold Database UniProt accession (e.g. Q9KPW0 or AF:Q9KPW0)
+        from esm_amp_screen.alphafold import fetch_alphafold_target
+        uid = receptor_arg.split(":")[-1].strip().upper()
+        af_res = fetch_alphafold_target(uid, out_pdb=rec_pdb_path, clean=True)
+        rec_pdb_path = af_res["pdb_path"]
+        logger.info(f"Loaded AlphaFold predicted target {uid} (Length: {af_res['length']} aa, Global pLDDT: {af_res['global_plddt']})")
     elif len(receptor_arg) == 4 and receptor_arg.isalnum():
         # RCSB PDB ID
         fetch_rcsb_pdb(receptor_arg, rec_pdb_path)
         rec_pdb_path = clean_receptor_pdb(rec_pdb_path, out_dir / "target_receptor_clean.pdb", receptor_chain=rec_chain)
     else:
-        raise FileNotFoundError(f"Receptor file not found and not a valid 4-letter PDB ID: {receptor_arg}")
+        raise FileNotFoundError(f"Receptor file not found and not a valid UniProt accession or PDB ID: {receptor_arg}")
 
     # 3. Calculate Grid Box / Pocket Geometry
     center_coords = tuple(map(float, args.center)) if args.center else None
@@ -784,6 +791,31 @@ def run_pipeline(args: argparse.Namespace) -> None:
     logger.info(f"HTML 3D Report:  {out_dir / 'screening_report.html'}")
     logger.info(f"Top complex PDBs: {out_dir / 'top_complexes'}")
 
+    # AlphaFold-Multimer auto-preparation for top hits
+    if getattr(args, "af_multimer", False):
+        from esm_amp_screen.alphafold import prepare_alphafold_multimer_inputs
+        af_out_dir = out_dir / "alphafold_multimer_inputs"
+        ensure_dir(af_out_dir)
+        st_rec = gemmi.read_structure(str(rec_pdb_path))
+        rec_seq = "".join(
+            AA_3TO1.get(res.name.upper(), "")
+            for m in st_rec for c in m if c.name == rec_chain
+            for res in c if res.name.upper() in AA_3TO1
+        )
+        top_cands = (refined_summary_data if (refine_n > 0 or stage3_n > 0) else summary_data)[:args.top]
+        logger.info(f"Preparing AlphaFold-Multimer / AF3 inputs for top {len(top_cands)} candidates...")
+        for cand in top_cands:
+            pep_id = cand["pep_id"]
+            p_seq = sequences.get(pep_id, "")
+            if p_seq and rec_seq:
+                prepare_alphafold_multimer_inputs(
+                    target_seq=rec_seq,
+                    peptide_seq=p_seq,
+                    job_name=f"{rec_pdb_path.stem}_{pep_id}",
+                    out_dir=af_out_dir / pep_id
+                )
+        logger.info(f"AlphaFold-Multimer & AF3 inputs saved to: {af_out_dir}")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -839,6 +871,8 @@ def main():
                        help="Number of top druggable surface pockets to dock against in blind docking mode (default: 1; set to 5 for comprehensive 5-pocket blind docking)")
     p_run.add_argument("--blind-docking", action="store_true", default=False,
                        help="Enable full multi-pocket blind docking across the top 5 predicted receptor surface pockets")
+    p_run.add_argument("--af-multimer", action="store_true", default=False,
+                       help="Automatically generate AlphaFold-Multimer and AlphaFold 3 co-folding inputs for top candidates")
     p_run.set_defaults(func=run_pipeline)
 
     # Command: pockets (standalone cavity detection and druggability scoring)
@@ -859,7 +893,8 @@ def main():
     p_mem.add_argument("--device", default="cpu", help="Device to run ESM-2 ('cpu' or 'cuda', default: cpu)")
     p_mem.add_argument("--top", type=int, default=20, help="Number of top hits to display in CLI leaderboard (default: 20)")
     p_mem.add_argument("--batch-size", type=int, default=32, help="ESM-2 embedding batch size (default: 32)")
-    p_mem.add_argument("--no-esm", action="store_true", default=False, help="Disable ESM-2 and use pure Wimley-White biophysics")
+    p_mem.add_argument("--no-esm", action="store_true", default=True, help="Disable ESM-2 and use pure Wimley-White biophysics and DeepSTAMP scoring (default: True)")
+    p_mem.add_argument("--use-esm", dest="no_esm", action="store_false", help="Enable ESM-2 neural embedding model")
     p_mem.set_defaults(func=run_membrane_screening_cli)
 
     # Command: optimize-hit (in silico alanine scan & lead optimization)
@@ -957,11 +992,18 @@ def run_pockets_cli(args: argparse.Namespace) -> None:
     rec_pdb_path = out_dir / "target_receptor.pdb"
     if Path(receptor_arg).exists():
         rec_pdb_path = clean_receptor_pdb(Path(receptor_arg), rec_pdb_path, receptor_chain=rec_chain)
+    elif receptor_arg.upper().startswith("AF:") or (len(receptor_arg) in (6, 10) and receptor_arg.isalnum()):
+        # AlphaFold Database UniProt accession (e.g. Q9KPW0 or AF:Q9KPW0)
+        from esm_amp_screen.alphafold import fetch_alphafold_target
+        uid = receptor_arg.split(":")[-1].strip().upper()
+        af_res = fetch_alphafold_target(uid, out_pdb=rec_pdb_path, clean=True)
+        rec_pdb_path = af_res["pdb_path"]
+        logger.info(f"Loaded AlphaFold predicted target {uid} (Length: {af_res['length']} aa, Global pLDDT: {af_res['global_plddt']})")
     elif len(receptor_arg) == 4 and receptor_arg.isalnum():
         fetch_rcsb_pdb(receptor_arg, rec_pdb_path)
         rec_pdb_path = clean_receptor_pdb(rec_pdb_path, out_dir / "target_receptor_clean.pdb", receptor_chain=rec_chain)
     else:
-        raise FileNotFoundError(f"Receptor file not found and not a valid 4-letter PDB ID: {receptor_arg}")
+        raise FileNotFoundError(f"Receptor file not found and not a valid UniProt accession or PDB ID: {receptor_arg}")
 
     top_k = getattr(args, "top_pockets", 5)
     padding = getattr(args, "padding", 8.0)

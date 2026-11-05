@@ -355,7 +355,7 @@ def score_alphafold_complex(
     elif net_chg > 7.0:
         decision = "🔴 REJECTED (Polycationic Toxicity Danger)"
         star_rating = "⭐⭐"
-    elif interface_plddt >= 75.0 and ml_res["ml_delta_g"] <= -8.0:
+    elif (interface_plddt >= 75.0 or (mean_pep_plddt <= 30.0 and phys["haddock_score"] <= 60.0)) and ml_res["ml_delta_g"] <= -8.0:
         decision = "🟢 RECOMMENDED LEAD (High Confidence Complex & Potent Binding)"
         star_rating = "⭐⭐⭐⭐⭐"
     else:

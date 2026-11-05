@@ -427,6 +427,48 @@ esm-amp-screen pockets \
 
 ---
 
+### 7. `esm-amp-screen alphafold` (AlphaFold Suite for Unknown Targets & Peptides)
+
+Replaces ESM with an end-to-end AlphaFold workflow for uncharacterized targets and de novo designed peptides:
+
+#### Step 1: Fetch Unknown Target from AlphaFold Database (AFDB)
+Directly query the AlphaFold Database by UniProt accession ID (e.g. `Q9KPW0`), extract structural confidence (pLDDT), and clean the coordinates:
+```bash
+esm-amp-screen alphafold fetch --uniprot Q9KPW0 --output ./target_receptors/
+```
+*Tip:* You can also pass a UniProt ID directly to `--receptor` in `esm-amp-screen run` or `esm-amp-screen target` (e.g. `--receptor Q9KPW0`), and the pipeline will automatically resolve and download the AlphaFold structure from AFDB.
+
+#### Step 2: Prepare AlphaFold-Multimer & AlphaFold 3 Co-Folding Inputs
+Generate co-folding job inputs for candidate peptides against the target receptor:
+```bash
+esm-amp-screen alphafold prep \
+  --target-seq "<TARGET_SEQUENCE>" \
+  --peptide-seq "KIFCGETCKFIPCITKVPGTCKCKSKVCYFN" \
+  --job-name Vcholerae_BamA_DesignB \
+  --output ./af_multimer_inputs/
+```
+- Creates ColabFold FASTA (`<target>:<peptide>`) and automated runner script (`run_colabfold_*.sh`).
+- Creates **AlphaFold 3 JSON** ready for direct upload to [alphafoldserver.com](https://alphafoldserver.com).
+
+#### Step 3: Evaluate & Triage Co-Complex Structures
+Score co-folded AlphaFold-Multimer / AF3 complex PDB models with HADDOCK explicit physics, 56D ML calibrated binding affinity, and peptide safety profiling:
+```bash
+esm-amp-screen alphafold score \
+  --complex-pdb complex_Design_B.pdb \
+  --target-chain A \
+  --peptide-chain B
+```
+- **Interface pLDDT & Confidence:** Extracts residue pLDDT at the binding interface ($\le 5\ \text{\AA}$).
+- **HADDOCK Force-Field Physics:** $E_{\text{vdw}}$, $E_{\text{elec}}$, $E_{\text{desolv}}$, buried surface area (BSA), and steric clash detection.
+- **56D Calibrated ML Affinity:** Predicts solution $K_d$ and thermodynamic $\Delta G$ using the validated multi-model ensemble.
+- **Toxicity & Hemolysis Profiling:** Net charge at physiological pH 7.4, Eisenberg hydrophobic moment ($\mu_H$), mean hydrophobicity, hemolysis risk, and polycationic cytotoxic hazard ($> +7.0$).
+- **Executive Decision Triage:**
+  - `🟢 RECOMMENDED LEAD` (High confidence, potent $K_d < 300\ \text{nM}$, 0 clashes, safe charge & low hemolysis)
+  - `🟡 BACKUP CANDIDATE` (Moderate confidence / viable alternative)
+  - `🔴 REJECTED` (Steric clash, membrane impermeable, or cytotoxic danger)
+
+---
+
 ## 📁 Output File Structure
 
 A virtual screening run creates the following organized folder hierarchy:
