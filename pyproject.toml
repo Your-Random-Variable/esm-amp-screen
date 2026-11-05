@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "esm_amp_screen"
-version = "1.5.0"
-description = "High-Throughput ESM-Powered Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer"
+version = "1.7.0"
+description = "High-Throughput AlphaFold & Biophysics-Grounded Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer"
 readme = "README.md"
 authors = [{ name = "Antigravity Computational Science Team" }]
 license = { text = "MIT" }
@@ -20,18 +20,24 @@ dependencies = [
     "biopython>=1.81",
     "PeptideBuilder>=0.1.1",
     "tqdm>=4.65.0",
-    "joblib>=1.3.0",
-    "torch>=2.0.0",
-    "transformers>=4.30.0"
+    "joblib>=1.3.0"
 ]
 
 [project.optional-dependencies]
 relaxation = [
     "openbabel-wheel>=3.1.1.20"
 ]
+esm = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0"
+]
 all = [
-    "openbabel-wheel>=3.1.1.20"
+    "openbabel-wheel>=3.1.1.20",
+    "torch>=2.0.0",
+    "transformers>=4.30.0"
 ]
 
 [project.scripts]
+amp-screen = "esm_amp_screen.cli:main"
+af-amp-screen = "esm_amp_screen.cli:main"
 esm-amp-screen = "esm_amp_screen.cli:main"

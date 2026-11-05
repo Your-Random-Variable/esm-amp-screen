@@ -12,7 +12,7 @@ import gemmi
 
 from esm_amp_screen import __version__
 from esm_amp_screen.utils import logger, read_fasta, ensure_dir, which_tool, AA_3TO1
-from esm_amp_screen.esm_folder import batch_fold_peptides, fetch_rcsb_pdb, predict_secondary_structure_propensity
+from esm_amp_screen.structure_builder import batch_fold_peptides, fetch_rcsb_pdb, predict_secondary_structure_propensity
 from esm_amp_screen.receptor_prep import clean_receptor_pdb, calculate_grid_box, detect_surface_cavities
 from esm_amp_screen.peptide_prep import batch_prepare_peptides, prepare_native_peptides, create_docked_pristine_pdb
 from esm_amp_screen.docking_engine import run_parallel_screening
@@ -250,9 +250,9 @@ def run_pipeline(args: argparse.Namespace) -> None:
     # 1. External tools verification
     obabel_bin = args.obabel_bin or which_tool("obabel")
 
-    print("\n" + "="*70)
-    print("      ESM-AMP-SCREEN: High-Throughput Protein-Peptide Virtual Screening")
-    print("="*70 + "\n")
+    print("\n" + "="*80)
+    print("      AF-AMP-SCREEN: High-Throughput Protein-Peptide Virtual Screening & AlphaFold Suite")
+    print("="*80 + "\n")
 
     # 2. Receptor resolution
     receptor_arg = args.receptor
@@ -819,8 +819,8 @@ def run_pipeline(args: argparse.Namespace) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="esm-amp-screen",
-        description="High-Throughput ESM-Powered Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer"
+        prog="amp-screen",
+        description="High-Throughput AlphaFold & Biophysics-Grounded Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer"
     )
     parser.add_argument("--version", "-v", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -861,7 +861,6 @@ def main():
     p_run.add_argument("--top", type=int, default=5, help="Number of top hits to export complex PDBs for (default: 5)")
     p_run.add_argument("--rescore-modes", type=int, default=5,
                        help="Number of docked binding modes to evaluate and rescore per top candidate in Stage 3 (default: 5)")
-    p_run.add_argument("--hf-token", help="HuggingFace API token for ESMFold inference endpoint")
     p_run.add_argument("--obabel-bin", help="Path to OpenBabel binary (default: search PATH)")
     p_run.add_argument("--ml-model", help="Path to custom pre-trained ML model file (.pkl / .joblib)")
     p_run.add_argument("--relax", action="store_true", default=False,
@@ -885,16 +884,11 @@ def main():
     p_pock.add_argument("--min-distance", type=float, default=8.0, help="Minimum spatial distance between detected pocket centers in Å (default: 8.0)")
     p_pock.set_defaults(func=run_pockets_cli)
 
-    # Command: membrane (sequence-first membrane biophysical profiling with ESM-2 & Wimley-White biophysics)
-    p_mem = subparsers.add_parser("membrane", help="Sequence-first membrane biophysical profiling using ESM-2 representations & Wimley-White thermodynamics (no docking required)")
+    # Command: membrane (sequence-first membrane biophysical profiling with Wimley-White biophysics)
+    p_mem = subparsers.add_parser("membrane", help="Sequence-first membrane biophysical profiling using Wimley-White thermodynamics & DeepSTAMP scoring (no docking required)")
     p_mem.add_argument("--library", "-l", required=True, help="Peptide library FASTA file, or CSV containing a 'sequence' column")
     p_mem.add_argument("--output", "-o", default="./membrane_screening_results", help="Output directory for membrane screening leaderboard")
-    p_mem.add_argument("--model", default="facebook/esm2_t12_35M_UR50D", help="ESM-2 model name or checkpoint path (default: facebook/esm2_t12_35M_UR50D)")
-    p_mem.add_argument("--device", default="cpu", help="Device to run ESM-2 ('cpu' or 'cuda', default: cpu)")
     p_mem.add_argument("--top", type=int, default=20, help="Number of top hits to display in CLI leaderboard (default: 20)")
-    p_mem.add_argument("--batch-size", type=int, default=32, help="ESM-2 embedding batch size (default: 32)")
-    p_mem.add_argument("--no-esm", action="store_true", default=True, help="Disable ESM-2 and use pure Wimley-White biophysics and DeepSTAMP scoring (default: True)")
-    p_mem.add_argument("--use-esm", dest="no_esm", action="store_false", help="Enable ESM-2 neural embedding model")
     p_mem.set_defaults(func=run_membrane_screening_cli)
 
     # Command: optimize-hit (in silico alanine scan & lead optimization)
@@ -976,14 +970,14 @@ def run_pockets_cli(args: argparse.Namespace) -> None:
     """CLI runner to detect, profile, and score the top druggable binding pockets on a receptor."""
     import pandas as pd
     from esm_amp_screen.receptor_prep import clean_receptor_pdb, detect_surface_cavities
-    from esm_amp_screen.esm_folder import fetch_rcsb_pdb
+    from esm_amp_screen.structure_builder import fetch_rcsb_pdb
     from esm_amp_screen.reporter import generate_pockets_pymol_script
 
     out_dir = Path(args.output).resolve()
     ensure_dir(out_dir)
 
     print("\n" + "="*110)
-    print("      ESM-AMP-SCREEN: DRUGGABLE SURFACE POCKET DETECTION & GEOMETRIC CAVITY PROFILING")
+    print("      AF-AMP-SCREEN: DRUGGABLE SURFACE POCKET DETECTION & GEOMETRIC CAVITY PROFILING")
     print("      High-Resolution 7-Ray PSP LIGSITE Grid Concavity & 0-100 Druggability Scoring")
     print("="*110 + "\n")
 
@@ -1309,14 +1303,13 @@ def run_membrane_screening_cli(args: argparse.Namespace) -> None:
     """CLI runner for direct sequence-first membrane AMP screening."""
     import pandas as pd
     from esm_amp_screen.membrane_scorer import evaluate_membrane_activity
-    from esm_amp_screen.esm_embedder import ESM2Embedder
 
     out_dir = Path(args.output).resolve()
     ensure_dir(out_dir)
 
     print("\n" + "="*115)
-    print("      ESM-AMP-SCREEN: MEMBRANE BIOPHYSICAL PROFILING & PERMEABILIZATION SCREENING")
-    print("      Sequence Biophysics: ESM-2 Neural Representations + Wimley-White Interfacial Thermodynamics")
+    print("      AF-AMP-SCREEN: MEMBRANE BIOPHYSICAL PROFILING & PERMEABILIZATION SCREENING")
+    print("      Sequence Biophysics: Wimley-White Interfacial Thermodynamics + DeepSTAMP Rules")
     print("="*115 + "\n")
 
     # 1. Parse Input Sequences
@@ -1353,13 +1346,7 @@ def run_membrane_screening_cli(args: argparse.Namespace) -> None:
 
     logger.info(f"Loaded {len(sequences)} peptide sequences for membrane screening.")
 
-    # 2. ESM-2 Sequence Model (Tier 0)
-    embedder = None
-    if not getattr(args, "no_esm", False):
-        model_name = getattr(args, "model", "facebook/esm2_t12_35M_UR50D")
-        device = getattr(args, "device", "cpu")
-        embedder = ESM2Embedder(model_name=model_name, device=device)
-        logger.info(f"Using ESM-2 model: {model_name} on {device}")
+    # 2. Sequence Evaluation (Pure Biophysics & DeepSTAMP)
 
     # 3. Sequence Evaluation
     records = []

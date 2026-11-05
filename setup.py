@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="esm_amp_screen",
-    version="1.5.0",
-    description="High-Throughput ESM-Powered Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer",
+    version="1.7.0",
+    description="High-Throughput AlphaFold & Biophysics-Grounded Protein-Peptide Virtual Screening, 7-Ray PSP Multi-Pocket Blind Docking, Physics Engine, & In Silico Lead Optimizer",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="Antigravity Computational Science Team",
@@ -19,12 +19,26 @@ setup(
         "biopython>=1.81",
         "PeptideBuilder>=0.1.1",
         "tqdm>=4.65.0",
-        "joblib>=1.3.0",
-        "torch>=2.0.0",
-        "transformers>=4.30.0"
+        "joblib>=1.3.0"
     ],
+    extras_require={
+        "esm": [
+            "torch>=2.0.0",
+            "transformers>=4.30.0"
+        ],
+        "relaxation": [
+            "openbabel-wheel>=3.1.1.20"
+        ],
+        "all": [
+            "openbabel-wheel>=3.1.1.20",
+            "torch>=2.0.0",
+            "transformers>=4.30.0"
+        ]
+    },
     entry_points={
         "console_scripts": [
+            "amp-screen = esm_amp_screen.cli:main",
+            "af-amp-screen = esm_amp_screen.cli:main",
             "esm-amp-screen = esm_amp_screen.cli:main",
         ],
     },

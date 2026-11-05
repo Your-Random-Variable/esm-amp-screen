@@ -19,7 +19,14 @@ from esm_amp_screen.membrane_scorer import (
     calculate_amphipathic_moment,
     evaluate_membrane_activity
 )
-from esm_amp_screen.esm_embedder import ESM2Embedder
+try:
+    import torch
+    import transformers
+    from esm_amp_screen.esm_embedder import ESM2Embedder
+    HAS_ESM = True
+except ImportError:
+    HAS_ESM = False
+    ESM2Embedder = None
 
 
 class TestMembraneBiophysics(unittest.TestCase):
@@ -115,6 +122,7 @@ class TestMembraneBiophysics(unittest.TestCase):
             evaluate_membrane_activity("KWK")
 
 
+@unittest.skipUnless(HAS_ESM, "PyTorch/Transformers not installed; ESM optional")
 class TestESMEmbedder(unittest.TestCase):
     """Verifies ESM-2 model inference, batching, and calibrated sequence predictions."""
 
